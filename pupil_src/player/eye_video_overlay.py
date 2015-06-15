@@ -194,7 +194,7 @@ class Eye_Video_Overlay(Plugin):
         self.menu.append(ui.Switch('mirror0',self,label="Eye 1: Horiz. Flip"))
         self.menu.append(ui.Switch('flip0',self,label="Eye 1: Vert. Flip"))
         if 'both' in self.showeyes:
-            self.menu.append(ui.Selector('showeyes',self,label='Show numbr of eyes',selection=['both eye1','both eye2','both eye1 and eye2'],labels= ['eye 1','eye 2','show both']))
+            self.menu.append(ui.Selector('showeyes',self,label='Show',selection=['both eye1','both eye2','both eye1 and eye2'],labels= ['eye 1','eye 2','both']))
         if 'eye2' in self.showeyes:
             self.menu.append(ui.Switch('mirror1',self,label="Eye 2: Horiz Flip"))
             self.menu.append(ui.Switch('flip1',self,label="Eye 2: Vert Flip"))
