@@ -30,7 +30,6 @@ from methods import normalize,denormalize
 import logging
 logger = logging.getLogger(__name__)
 
-
 def get_past_timestamp(idx,timestamps):
     """
     recursive function to find the most recent valid timestamp in the past
@@ -64,7 +63,6 @@ def get_nearest_timestamp(past_timestamp,future_timestamp,world_timestamp):
         return past_timestamp
     else:
         return future_timestamp
-
 
 def correlate_eye_world(eye_timestamps,world_timestamps):
     """
@@ -187,20 +185,29 @@ class Eye_Video_Overlay(Plugin):
     def init_gui(self):
         # initialize the menu
         self.menu = ui.Scrolling_Menu('Eye Video Overlay')
-        self.menu.append(ui.Info_Text('Show the eye video overlaid on top of the world video.'))
+        self.update_gui()
+        self.g_pool.gui.append(self.menu)
+
+    def update_gui(self):
+        self.menu.elements[:] = []
+        self.menu.append(ui.Info_Text('Show the eye video overlaid on top of the world video. Eye1 is usually the right eye'))
         self.menu.append(ui.Slider('opaqueness',self,min=0.0,step=0.05,max=1.0,label='Opacity'))
         self.menu.append(ui.Slider('eyesize',self,min=0.2,step=0.1,max=1.0,label='Scale of Video'))
         self.menu.append(ui.Switch('move_around',self,label="Move Overlay Around"))
-        self.menu.append(ui.Switch('mirror0',self,label="Eye 1: Horiz. Flip"))
-        self.menu.append(ui.Switch('flip0',self,label="Eye 1: Vert. Flip"))
         if 'both' in self.showeyes:
-            self.menu.append(ui.Selector('showeyes',self,label='Show',selection=['both eye1','both eye2','both eye1 and eye2'],labels= ['eye 1','eye 2','both']))
+            self.menu.append(ui.Selector('showeyes',self,label='Show',selection=['both eye1','both eye2','both eye1 and eye2'],labels= ['eye 1','eye 2','both'],setter=self.set_showeyes))
+        if 'eye1' in self.showeyes:
+            self.menu.append(ui.Switch('mirror0',self,label="Eye 1: Horiz. Flip"))
+            self.menu.append(ui.Switch('flip0',self,label="Eye 1: Vert. Flip"))
         if 'eye2' in self.showeyes:
             self.menu.append(ui.Switch('mirror1',self,label="Eye 2: Horiz Flip"))
             self.menu.append(ui.Switch('flip1',self,label="Eye 2: Vert Flip"))
         self.menu.append(ui.Button('close',self.unset_alive))
-        # add menu to the window
-        self.g_pool.gui.append(self.menu)
+
+    def set_showeyes(self,new_mode):
+        self.showeyes = new_mode
+        self.update_gui()
+
 
     def deinit_gui(self):
         if self.menu:
@@ -208,6 +215,10 @@ class Eye_Video_Overlay(Plugin):
             self.menu = None
 
     def update(self,frame,events):
+        #if changed == True:
+        #    self.deinit_gui()
+        #    self.init_gui()
+        #    changed = False
 
         """ For the first eye! """
         if 'eye1' in self.showeyes:
