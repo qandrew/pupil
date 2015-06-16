@@ -68,8 +68,6 @@ class Vis_Watermark(Plugin):
             pos = denormalize(pos,(frame.img.shape[1],frame.img.shape[0]) ) # Position in img pixels
             self.pos[0] = pos[0]+self.drag_offset[0]
             self.pos[1] = pos[1]+self.drag_offset[1]
-            print self.alpha_mask
-
 
         if self.watermark is not None:
             #keep in image bounds, do this even when not dragging because the image sizes could change.
