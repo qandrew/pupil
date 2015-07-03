@@ -14,16 +14,16 @@ logger = logging.getLogger(__name__)
 
 class Circle3D:
 	#originally from Circle.py, see older version on github for further details of the original file
-	def __init__(self,centre=[0,0,0],normal=[0,0,0],radius=0):
-		self.centre = np.array(centre)
+	def __init__(self,center=[0,0,0],normal=[0,0,0],radius=0):
+		self.center = np.array(center)
 		self.normal = np.array(normal)
 		self.radius = radius
 
 	def __str__(self):
-		return "Circle { center: " + str(self.centre) + ", normal: " + str(self.normal) + ", radius: " + str(self.radius) + " } "
+		return "Circle { center: " + str(self.center) + ", normal: " + str(self.normal) + ", radius: " + str(self.radius) + " } "
 
 	def is_same(self,circle):
-		return  (self.centre == circle.centre and self.normal == circle.normal and self.radius == circle.radius)
+		return  (self.center == circle.center and self.normal == circle.normal and self.radius == circle.radius)
 
 class Conic:
 	#originally from Circle.py, see older version on github for further details of the original file
@@ -42,9 +42,9 @@ class Conic:
 			self.A = (ax*ax)/a2 + (ay*ay)/b2
 			self.B = 2*(ax*ay)/a2 - 2*(ax*ay)/b2
 			self.C = (ay*ay)/a2 +(ax*ax)/b2
-			self.D = (-2*ax*ay*ellipse.centre[1] - 2*ax*ax*ellipse.centre[0])/a2 + (2*ax*ay*ellipse.centre[1] - 2*ay*ay*ellipse.centre[0])/b2
-			self.E = (-2*ax*ay*ellipse.centre[0] - 2*ay*ay*ellipse.centre[1])/a2 + (2*ax*ay*ellipse.centre[0] - 2*ax*ax*ellipse.centre[1])/b2
-			self.F = (2*ax*ay*ellipse.centre[0]*ellipse.centre[1]+ax*ax*ellipse.centre[0]*ellipse.centre[0]+ay*ay*ellipse.centre[1]*ellipse.centre[1])/a2+ (-2*ax*ay*ellipse.centre[0]*ellipse.centre[1]+ ay*ay*ellipse.centre[0]*ellipse.centre[0]+ax*ax*ellipse.centre[1]*ellipse.centre[1])/b2-1
+			self.D = (-2*ax*ay*ellipse.center[1] - 2*ax*ax*ellipse.center[0])/a2 + (2*ax*ay*ellipse.center[1] - 2*ay*ay*ellipse.center[0])/b2
+			self.E = (-2*ax*ay*ellipse.center[0] - 2*ay*ay*ellipse.center[1])/a2 + (2*ax*ay*ellipse.center[0] - 2*ax*ax*ellipse.center[1])/b2
+			self.F = (2*ax*ay*ellipse.center[0]*ellipse.center[1]+ax*ax*ellipse.center[0]*ellipse.center[0]+ay*ay*ellipse.center[1]*ellipse.center[1])/a2+ (-2*ax*ay*ellipse.center[0]*ellipse.center[1]+ ay*ay*ellipse.center[0]*ellipse.center[0]+ax*ax*ellipse.center[1]*ellipse.center[1])/b2-1
 
 		else:
 			self.A = float()
@@ -192,8 +192,8 @@ class Conicoid:
 
 class Ellipse:
 
-	def __init__(self,centre=[0,0],major_radius=0.0,minor_radius=0.0,angle=0.0, conic = None):
-		self.centre = np.array(centre)
+	def __init__(self,center=[0,0],major_radius=0.0,minor_radius=0.0,angle=0.0, conic = None):
+		self.center = np.array(center)
 		self.major_radius = major_radius
 		self.minor_radius = minor_radius
 		self.angle = angle
@@ -217,16 +217,16 @@ class Ellipse:
 		Auu= conic.A*cos_squared +conic.C*sin_squared +conic.B*sint*cost
 		Avv= conic.A*sin_squared +conic.C*sin_squared -conic.B*sint*cost
 		#ROTATED = [Ao Au Av Auu Avv]
-		tuCentre = -Au / (2.0*Auu)
-		tvCentre = -Av / (2.0*Auu)
-		wCentre = Ao - Auu*np.square(tuCentre) - Avv*np.square(tvCentre)
+		tuCenter = -Au / (2.0*Auu)
+		tvCenter = -Av / (2.0*Auu)
+		wCenter = Ao - Auu*np.square(tuCenter) - Avv*np.square(tvCenter)
 
-		self.centre = [0,0]
-		self.centre[0] = tuCentre*cost - tvCentre*sint
-		self.centre[1] = tuCentre*sint - tvCentre*cost
+		self.center = [0,0]
+		self.center[0] = tuCenter*cost - tvCenter*sint
+		self.center[1] = tuCenter*sint - tvCenter*cost
 
-		self.major_radius = np.sqrt(abs(-wCentre/Auu))
-		self.minor_radius = np.sqrt(abs(-wCentre/Avv))
+		self.major_radius = np.sqrt(abs(-wCenter/Auu))
+		self.minor_radius = np.sqrt(abs(-wCenter/Avv))
 
 		if (self.major_radius < self.minor_radius):
 			major_radius,minor_radius = minor_radius,major_radius
@@ -236,7 +236,7 @@ class Ellipse:
 			self.angle = self.angle - scipy.pi
 
 	def __str__(self):
-		return "Ellipse center: " + str(self.centre) + ", major_radius: " + str(self.major_radius) + ", minor_radius: " + str(self.minor_radius) + ", angle: " + str(self.angle)
+		return "Ellipse center: " + str(self.center) + ", major_radius: " + str(self.major_radius) + ", minor_radius: " + str(self.minor_radius) + ", angle: " + str(self.angle)
 
 	def major_axis(self):
 		return [self.major_radius*np.sin(self.angle),self.major_radius*np.cos(self.angle)]
@@ -245,18 +245,18 @@ class Ellipse:
 		return [self.minor_radius*np.cos(self.angle),self.minor_radius*np.sin(self.angle)]
 
 	def is_same(self,ellipse):
-		return (self.centre == ellipse.centre and self.major_radius == ellipse.major_radius and self.minor_radius == ellipse.minor_radius and self.angle == ellipse.angle)
+		return (self.center == ellipse.center and self.major_radius == ellipse.major_radius and self.minor_radius == ellipse.minor_radius and self.angle == ellipse.angle)
 
 	def scale(self,scale):
-		self.centre = [self.centre[0]*scale,self.centre[1]*scale]
+		self.center = [self.center[0]*scale,self.center[1]*scale]
 		self.major_radius = self.major_radius*scale
 		self.minor_radius = self.minor_radius*scale
 		self.angle = self.angle*scale
 
 	def pointAlongEllipse(self, theta):
 		#theta is the angle
-		xt = self.centre[0] + self.major_radius*np.cos(self.angle)*np.cos(theta) - self.minor_radius*np.sin(self.angle)*np.sin(theta)
-		yt = self.centre[1] + self.major_radius*np.sin(self.angle)*np.cos(theta) + self.major_radius*np.cos(self.angle)*np.sin(theta)
+		xt = self.center[0] + self.major_radius*np.cos(self.angle)*np.cos(theta) - self.minor_radius*np.sin(self.angle)*np.sin(theta)
+		yt = self.center[1] + self.major_radius*np.sin(self.angle)*np.cos(theta) + self.major_radius*np.cos(self.angle)*np.sin(theta)
 		return np.array([xt,yt])
 
 class Line2D:
@@ -299,15 +299,15 @@ class Line3D:
 		return "Line { origin:" + str(self.origin) + " direction: " + str(self.direction) + " }"
 
 class Sphere:
-	def __init__(self,centre=[0,0,0],radius=0):
-		self.centre = np.array(centre)
+	def __init__(self,center=[0,0,0],radius=0):
+		self.center = np.array(center)
 		self.radius = radius
 
 	def __str__(self):
-		return "Sphere centre: " + str(self.centre) + " ,radius: " + str(self.radius)
+		return "Sphere center: " + str(self.center) + " ,radius: " + str(self.radius)
 
 	def is_same(self,sphere):
-		return (self.centre == sphere.centre and self.radius == sphere.radius)
+		return (self.center == sphere.center and self.radius == sphere.radius)
 
 if __name__ == '__main__':
 	#testing if modules here work correctly

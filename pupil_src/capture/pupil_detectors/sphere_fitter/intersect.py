@@ -125,7 +125,7 @@ def sphere_intersect(line,sphere):
 
 	v = line.direction
 	p = line.origin #put p at origin
-	c = sphere.centre - p
+	c = sphere.center - p
 	r = sphere.radius
 
 	# from wikipedia :)

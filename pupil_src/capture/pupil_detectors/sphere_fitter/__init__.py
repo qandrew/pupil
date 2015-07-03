@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 #global functions
 def toRotatedRect(ellipse):
-	toreturn = cv2.RotatedRect(ellipse.centre,
+	toreturn = cv2.RotatedRect(ellipse.center,
 		cv2.Size2f(2*ellipse.major_radius),
 		cv2.Size2f(2*ellipse.minor_radius),
 		ellipse.angle * 180 / scipy.pi)
@@ -43,7 +43,7 @@ def circleFromParams_eye(eye,params):
 		return geometry.Circle3D()
 
 	radial = auxiliary_functions.sph2cart(1, params.theta, params.psi)
-	return geometry.Circle3D(eye.centre + eye.radius*radial,radial, params.radius)
+	return geometry.Circle3D(eye.center + eye.radius*radial,radial, params.radius)
 
 class PupilParams: #was a structure in C
 	def __init__(self, theta = 0, psi = 0, radius = 0):
@@ -72,17 +72,17 @@ class Sphere_Fitter():
 	def __init__(self, focal_length = 879.193, region_band_width = 5, region_step_epsilon = 0.5):
 		#initialize based on what was done in singleeyefitter.cpp
 		self.focal_length = focal_length
-		self.region_band_width = region_band_width
-		self.region_step_epsilon = region_step_epsilon
-		self.region_scale = 1
-		# self.index = []
-		self.camera_centre = np.array([0,0,0])
+		self.camera_center = np.array([0,0,0])
 		self.eye = geometry.Sphere() #model of our eye. geometry.sphere()
-		self.projected_eye = [] #location of projected eye
+		self.projected_eye = geometry.Ellipse() #ellipse that is the projected eye sphere
 		self.observations = [] #array containing elements in pupil class
 		self.model_version = 0
 
-		self.count = 0
+		# self.region_band_width = region_band_width
+		# self.region_step_epsilon = region_step_epsilon
+		# self.region_scale = 1
+		# self.index = []
+		self.count = 0 #used for limiting logging purposes
 
 	def add_observation(self,ellipse):
 		#ellipse is the ellipse of pupil in camera image
@@ -114,10 +114,6 @@ class Sphere_Fitter():
 				size circles that would project onto it. The size of the circles
 				doesn't matter here, only their center and normal does.
 			"""
-			# print pupil.ellipse_Observation.ellipse
-			# print pupil_radius
-			# print self.focal_length
-			#unprojection_pair = projection.unproject(pupil.ellipse, pupil_radius, self.focal_length)
 			unprojection_pair = pupil.projected_circles
 
 			""" get projected circles and gaze vectors
@@ -130,7 +126,7 @@ class Sphere_Fitter():
 
 			#here maybe write some function that determines which line is better
 
-			c = np.reshape(unprojection_pair[0].centre, (3,1)) #it is a 3D circle
+			c = np.reshape(unprojection_pair[0].center, (3,1)) #it is a 3D circle
 			v = np.reshape(unprojection_pair[0].normal, (3,1))
 
 			c_proj = projection.project_point(np.reshape(c,(3,1)),self.focal_length)
@@ -149,7 +145,7 @@ class Sphere_Fitter():
 			For robustness, use RANSAC to eliminate stray gaze lines
 			(This has to be done here because it's used by the pupil circle disambiguation)
 		"""
-		eye_centre_proj = []
+		eye_center_proj = []
 		valid_eye = bool
 
 		# if (use_ransac):
@@ -158,15 +154,15 @@ class Sphere_Fitter():
 		# else:
 		for pupil in self.observations:
 			pupil.init_valid = True
-		eye_centre_proj = intersect.nearest_intersect_2D(pupil_gazelines_proj)
-		eye_centre_proj = np.reshape(eye_centre_proj,(2,))
+		eye_center_proj = intersect.nearest_intersect_2D(pupil_gazelines_proj)
+		eye_center_proj = np.reshape(eye_center_proj,(2,))
 		valid_eye = True
 
 		if (valid_eye):
-			self.eye.centre = [eye_centre_proj[0] * eye_z / self.focal_length,
-				eye_centre_proj[1] * eye_z / self.focal_length, eye_z] #force it to be a 3x1 array
+			self.eye.center = [eye_center_proj[0] * eye_z / self.focal_length,
+				eye_center_proj[1] * eye_z / self.focal_length, eye_z] #force it to be a 3x1 array
 			self.eye.radius = 1
-			self.projected_eye = projection.project_point(self.eye.centre, self.focal_length)
+			self.projected_eye = projection.project_sphere(self.eye, self.focal_length)
 
 			for i in xrange(len(self.observations)):
 				#disambiguate pupil circles using projected eyeball center
@@ -175,7 +171,7 @@ class Sphere_Fitter():
 				c_proj = np.reshape(line.origin, (2,))
 				v_proj = np.reshape(line.direction, (2,))
 
-				if (np.dot(c_proj - eye_centre_proj, v_proj) >= 0):
+				if (np.dot(c_proj - eye_center_proj, v_proj) >= 0):
 					#check if v_proj going away from estimated eye center, take the one going away.
 					self.observations[i].circle = pupil_pair[0]
 				else: 
@@ -198,63 +194,11 @@ class Sphere_Fitter():
 			logger.warning(self.eye)
 			self.count = 0
 
-""" USLESS FUNCTIONS
-	def initialize_model(self): pass
-	def refine_with_region_contrast(self,CallbackFunction): pass
-	def refine_with_inliers(self,CallbackFunction): pass
-	def initialise_single_observation_id(self,id): self.initialise_single_observation(self.observations[id])
-	def unproject_single_observation(self,id, pupil_radius = 1):
-		if (eye.centre[0] == 0 and eye.centre[1] == 0 and eye.centre[2]==0 and eye.radius == 0):
-			print "RUNTIME ERROR: need to get eye centre estimate first (by unprojecting multiple observations)"
-			return
-
-		unprojection_pair = projection.unproject(self.pupil.observation.ellipse,pupil_radius,self.focal_length)
-		c = unprojection_pair[0].centre #it is a 3D circle
-		v = unprojection_pair[0].normal
-
-		c_proj = projection.project_point(c,self.focal_length)
-		v_proj = projection.project_point(v + c, self.focal_length) - c_proj
-		v_proj = v_proj/np.linalg.norm(v_proj)
-
-		eye_centre_proj = projection.project_point(eye.centre, self.focal_length)
-		if (np.dot(c_proj - eye_centre_proj, v_proj) >= 0):
-			self.pupil.circle = unprojection_pair[0]
-		else:
-			self.pupil.circle = unprojection_pair[1]
-		return self.pupil.circle
-	def initialise_single_observation(self,pupil): #to be implemented
-		# Ignore pupil circle norma, intersect pupil circle
-		# centre projection line with eyeball sphere
-		try:
-			#meed to implement Intersect.py!!!!!!
-			pupil_centre_sphere_intersect = intersect.intersect(Line)
-		except:
-			print "huding"
-	# Local (single pupil) calculations
-	def single_contrast_metric(self,id): pass
-	def print_single_contrast_metric(self,id): pass
-	def refine_single_with_contrast(self,id): pass
-	def print_single_contrast_metric_id(self,id): #don't need this functions
-		self.print_single_contrast_metric(self.observations[id])
-
-	def print_single_contrast_metric(self, pupil): #don't need this function
-		if (pupil.circle == False):
-			print "No Pupil"
-			return 0
-
-		params = [pupil.params.theta, pupil.params.psi, pupil.params.radius]
-		varz = [params, 0]
-
-		contrast_term = auxiliary_functions.PupilContrastTerm(eye, focal_length*region_scale,
-			cv2.resize(pupil.observation.image,region_scale), region_band_width, region_step_epsilon)
-		#contrast_val = contrast_term. 
-"""
-
 if __name__ == '__main__':
 
 	#testing stuff
 	huding = Sphere_Fitter()
-	if len([]) == 0:
+	if huding.projected_eye== [0,0]:
 		print "huding"
 	print "hudong"
 
