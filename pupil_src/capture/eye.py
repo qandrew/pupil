@@ -42,7 +42,7 @@ from cv2_writer import CV_Writer
 
 # Pupil detectors
 from pupil_detectors import Canny_Detector
-
+from pupil_detectors import sphere_fitter
 
 
 def eye(g_pool,cap_src,cap_size,rx_from_world,eye_id=0):
@@ -181,7 +181,7 @@ def eye(g_pool,cap_src,cap_size,rx_from_world,eye_id=0):
     writer = None
 
     pupil_detector = Canny_Detector(g_pool)
-
+    eye_model = sphere_fitter.Sphere_Fitter()
 
     # UI callback functions
     def set_scale(new_scale):
@@ -328,7 +328,6 @@ def eye(g_pool,cap_src,cap_size,rx_from_world,eye_id=0):
         # stream the result
         g_pool.pupil_queue.put(result)
 
-
         # GL drawing
         glfwMakeContextCurrent(main_window)
         clear_gl_screen()
@@ -351,8 +350,23 @@ def eye(g_pool,cap_src,cap_size,rx_from_world,eye_id=0):
                 pts = cv2.ellipse2Poly( (int(result['center'][0]),int(result['center'][1])),
                                         (int(result['axes'][0]/2),int(result['axes'][1]/2)),
                                         int(result['angle']),0,360,15)
+                # print "huding"
+                # print result['center']
+                # print pts.shape
                 cygl_draw_polyline(pts,1,cygl_rgba(1.,0,0,.5))
             cygl_draw_points([result['center']],size=20,color=cygl_rgba(1.,0.,0.,.5),sharpness=1.)
+
+        #eye sphere fitter adding
+        if result['confidence'] > 0.8:
+            temp = sphere_fitter.geometry.Ellipse(result['center'],result['major'], result['minor'], result['angle'])
+            eye_model.add_observation(temp)
+            if len(eye_model.projected_eye) != 0:
+                #the eye model has been initialized
+                cygl_draw_polyline([eye_model.projected_eye,result['center']],5,cygl_rgba(0,1.0,0,.5))
+
+        if len(eye_model.observations) > 10:
+            eye_model.unproject_observations()
+            cygl_draw_points([eye_model.projected_eye],20,cygl_rgba(0.,1,0,.5))
 
         # render graphs
         graph.push_view()
