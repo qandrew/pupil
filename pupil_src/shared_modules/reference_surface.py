@@ -679,7 +679,7 @@ if __name__ == '__main__':
 
 
     rMat, _ = cv2.Rodrigues(rotation3d)
-    self.from_camera_to_referece = np.eye(4, dtype=np.float32)
-    self.from_camera_to_referece[:-1,:-1] = rMat
-    self.from_camera_to_referece[:-1, -1] = translation3d.reshape(3)
+    from_camera_to_referece = np.eye(4, dtype=np.float32)
+    from_camera_to_referece[:-1,:-1] = rMat
+    from_camera_to_referece[:-1, -1] = translation3d.reshape(3)
     # self.camera_pose_3d = np.linalg.inv(self.camera_pose_3d)

@@ -363,16 +363,17 @@ def eye(g_pool,cap_src,cap_size,rx_from_world,eye_id=0):
             if eye_model.projected_eye.center[0] != 0 and eye_model.projected_eye.center[1] != 0:
                 #the eye model has been initialized
                 cygl_draw_polyline([eye_model.projected_eye.center,result['center']],5,cygl_rgba(0,1.0,0,.5))
+
         if len(eye_model.observations) > 10:
             eye_model.unproject_observations()
 
-            cygl_draw_points([eye_model.projected_eye.center],20,cygl_rgba(0.,1,0,.5)) #draw pupil center
+            cygl_draw_points([eye_model.projected_eye.center],20,cygl_rgba(0.,1,0,.5)) #draw eye center
             pts = cv2.ellipse2Poly( (int(eye_model.projected_eye.center[0]),
                 int(eye_model.projected_eye.center[1])),
                 (int(eye_model.projected_eye.major_radius/2),
                 int(eye_model.projected_eye.minor_radius/2)),
                 int(eye_model.projected_eye.angle),0,360,15)
-            cygl_draw_polyline(pts,5,cygl_rgba(0,1.,0,.5)) #draw pupil sphere; currently off.
+            cygl_draw_polyline(pts,5,cygl_rgba(0,1.,0,.5)) #draw pupil sphere; currently incorrect.
 
 
         # render graphs

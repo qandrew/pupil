@@ -69,7 +69,7 @@ class Pupil: #data structure for a pupil
 #the class
 class Sphere_Fitter():
 
-	def __init__(self, focal_length = 879.193, region_band_width = 5, region_step_epsilon = 0.5):
+	def __init__(self, focal_length = 600, region_band_width = 5, region_step_epsilon = 0.5):
 		#initialize based on what was done in singleeyefitter.cpp
 		self.focal_length = focal_length
 		self.camera_center = np.array([0,0,0])
