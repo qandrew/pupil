@@ -27,7 +27,7 @@ class Trackball(object):
         glMatrixMode( GL_PROJECTION )
         glPushMatrix()
         glLoadIdentity( )
-        gluPerspective( 40.0, self.aspect, 0.1, 1000.0 )
+        gluPerspective( 60.0, self.aspect, 0.1, 1000.0 )
 
         glMatrixMode( GL_MODELVIEW )
         glPushMatrix()

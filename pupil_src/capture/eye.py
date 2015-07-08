@@ -21,7 +21,7 @@ from pyglui.cygl.utils import init as cygl_init
 from pyglui.cygl.utils import draw_points as cygl_draw_points
 from pyglui.cygl.utils import RGBA as cygl_rgba
 from pyglui.cygl.utils import draw_polyline as cygl_draw_polyline
-from pyglui.cygl.utils import create_named_texture,update_named_texture,draw_named_texture
+from pyglui.cygl.utils import create_named_texture,update_named_texture,draw_named_texture,draw_points_norm
 
 # check versions for our own depedencies as they are fast-changing
 from pyglui import __version__ as pyglui_version
@@ -43,7 +43,12 @@ from cv2_writer import CV_Writer
 # Pupil detectors
 from pupil_detectors import Canny_Detector
 from pupil_detectors import sphere_fitter
+from pupil_detectors.sphere_fitter import visualizer
+from pupil_detectors.sphere_fitter import projection
 
+# time
+import time
+import scipy
 
 def eye(g_pool,cap_src,cap_size,rx_from_world,eye_id=0):
     """
@@ -220,7 +225,7 @@ def eye(g_pool,cap_src,cap_size,rx_from_world,eye_id=0):
     # gl_state settings
     basic_gl_setup()
     g_pool.image_tex = create_named_texture(frame.img.shape)
-    update_named_texture(g_pool.image_tex,frame.img)
+    update_named_texture(g_pool.image_tex,frame.img) #adding the currently eye image to g_pool
 
     # refresh speed settings
     glfwSwapInterval(0)
@@ -273,8 +278,13 @@ def eye(g_pool,cap_src,cap_size,rx_from_world,eye_id=0):
     fps_graph.update_rate = 5
     fps_graph.label = "%0.0f FPS"
 
+    #initialize visualizer
+    visual = visualizer.Visualizer("eye model")
+    visual.open_window()
+
     # Event loop
     while not g_pool.quit.value:
+
         # Get an image from the grabber
         try:
             frame = cap.get_frame()
@@ -328,10 +338,6 @@ def eye(g_pool,cap_src,cap_size,rx_from_world,eye_id=0):
         # stream the result
         g_pool.pupil_queue.put(result)
 
-        # GL drawing
-        glfwMakeContextCurrent(main_window)
-        clear_gl_screen()
-
         # switch to work in normalized coordinate space
         if g_pool.display_mode == 'algorithm':
             update_named_texture(g_pool.image_tex,frame.img)
@@ -339,7 +345,10 @@ def eye(g_pool,cap_src,cap_size,rx_from_world,eye_id=0):
             update_named_texture(g_pool.image_tex,frame.gray)
         else:
             pass
-
+        make_coord_system_pixel_based((frame.height,frame.width,3),g_pool.flip)
+        # GL drawing
+        glfwMakeContextCurrent(main_window)
+        clear_gl_screen()
         make_coord_system_norm_based(g_pool.flip)
         draw_named_texture(g_pool.image_tex)
         # switch to work in pixel space
@@ -355,17 +364,35 @@ def eye(g_pool,cap_src,cap_size,rx_from_world,eye_id=0):
                 # print pts.shape
                 cygl_draw_polyline(pts,1,cygl_rgba(1.,0,0,.5))
             cygl_draw_points([result['center']],size=20,color=cygl_rgba(1.,0.,0.,.5),sharpness=1.)
+            draw_points_norm(((0,0),),size=20,color=cygl_rgba(1.,0.,0.,.5),sharpness=1.)
 
         #eye sphere fitter adding
         if result['confidence'] > 0.8:
-            temp = sphere_fitter.geometry.Ellipse(result['center'],result['major'], result['minor'], result['angle'])
-            eye_model.add_observation(temp)
-            if eye_model.projected_eye.center[0] != 0 and eye_model.projected_eye.center[1] != 0:
-                #the eye model has been initialized
-                cygl_draw_polyline([eye_model.projected_eye.center,result['center']],5,cygl_rgba(0,1.0,0,.5))
+            # print "ellipse: "
+            # print result['center'],result['major'], result['minor'], result['angle']
+            # print result['center'][0] - 320, result['center'][1] - 240,result['major']/2, result['minor']/2, result['angle']*scipy.pi/180
+            # temp = sphere_fitter.geometry.Ellipse(result['center'],result['major'], result['minor'], result['angle'])
+            # eye_model.add_observation(temp)
+            eye_model.add_pupil_labs_observation(result)
+            # print eye_model.observations[-1].ellipse
 
-        if len(eye_model.observations) > 10:
+            #draw the circle back as an ellipse
+
+            newellipse = eye_model.get_projected_circle( eye_model.observations[-1].projected_circles[0] )
+            pts = cv2.ellipse2Poly( (int(newellipse.center[0]), int(newellipse.center[1])), 
+                (int(newellipse.major_radius), int(newellipse.minor_radius)), 
+                int(newellipse.angle*180/scipy.pi), 0,360,15)
+            cygl_draw_polyline(pts,2,cygl_rgba(0,0,1,.5))
+
+            newellipse = eye_model.get_projected_circle( eye_model.observations[-1].projected_circles[1] )
+            pts = cv2.ellipse2Poly( (int(newellipse.center[0]), int(newellipse.center[1])), 
+                (int(newellipse.major_radius), int(newellipse.minor_radius)), 
+                int(newellipse.angle*180/scipy.pi), 0,360,15)
+            cygl_draw_polyline(pts,2,cygl_rgba(0,1,0,.5))
+
+        if len(eye_model.observations) > 0:
             eye_model.unproject_observations()
+            eye_model.initialize_model()
 
             cygl_draw_points([eye_model.projected_eye.center],20,cygl_rgba(0.,1,0,.5)) #draw eye center
             pts = cv2.ellipse2Poly( (int(eye_model.projected_eye.center[0]),
@@ -374,6 +401,21 @@ def eye(g_pool,cap_src,cap_size,rx_from_world,eye_id=0):
                 int(eye_model.projected_eye.minor_radius/2)),
                 int(eye_model.projected_eye.angle),0,360,15)
             cygl_draw_polyline(pts,5,cygl_rgba(0,1.,0,.5)) #draw pupil sphere; currently incorrect.
+            visual.test_sphere = eye_model.eye
+
+        #draw all eye normal lines
+        if eye_model.projected_eye.center[0] != 0 and eye_model.projected_eye.center[1] != 0:
+            #the eye model has been initialized
+            for line in eye_model.pupil_gazelines_proj:
+                cygl_draw_polyline([line.origin-line.direction*500,line.origin+line.direction*500],1,cygl_rgba(0,1.0,0,.5))
+            # for pupil in eye_model.observations:
+            #     temp = projection.project_point(pupil.circle.center[0], eye_model.focal_length)
+            #     temp2 = projection.project_point(pupil.circle.center[0] + pupil.circle.normal[0], eye_model.focal_length)
+            #     temp[0] = temp[0] #- frame.width/2
+            #     temp[1] = temp[1] #- frame.height/2
+                # print "temp " + str(temp)
+                # print "temp2 " + str(temp2)
+                # cygl_draw_polyline([temp - temp2*500,temp + temp2*500],1,cygl_rgba(0,1.0,0,.5))
 
 
         # render graphs
@@ -389,12 +431,21 @@ def eye(g_pool,cap_src,cap_size,rx_from_world,eye_id=0):
         if g_pool.display_mode == 'roi':
             u_r.draw(g_pool.gui.scale)
 
+        # show the visualizer
+        visual.update_window()
+        glfwMakeContextCurrent(main_window)
+
         #update screen
         glfwSwapBuffers(main_window)
         glfwPollEvents()
 
+        # time.sleep(1)
+
 
     # END while running
+
+    #close visualiser
+    visual.close_window()
 
     # in case eye recording was still runnnig: Save&close
     if writer:

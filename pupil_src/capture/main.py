@@ -99,8 +99,8 @@ def main():
 
     # to use a pre-recorded video.
     # Use a string to specify the path to your video file as demonstrated below
-    # eye_src = '/Users/mkassner/Downloads/000/eye0.mkv' , '/Users/mkassner/Downloads/eye.avi'
-    # world_src = "/Users/mkassner/Downloads/000/world.mkv"
+    # eye_src = '/home/andrew/singleeyefitter/out.mp4' , #'/Users/mkassner/Downloads/eye.avi'
+    # world_src =  '/home/andrew/singleeyefitter/img_small/out.mp4' 
 
     # Camera video size in pixels (width,height)
     eye_size = (640,480)
@@ -132,13 +132,13 @@ def main():
         g_pool.eye_tx += [tx]
         p_eye[-1].start()
 
-    p_world = Process(target=world,args=(g_pool,world_src,world_size))
-    # world(g_pool,world_src,world_size)
-    p_world.start()
-    p_world.join()
+    # p_world = Process(target=world,args=(g_pool,world_src,world_size))
+    world(g_pool,world_src,world_size)
+
     # Exit / clean-up
     for p in p_eye:
         p.join()
+
 if __name__ == '__main__':
     freeze_support()
     main()

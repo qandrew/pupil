@@ -37,13 +37,10 @@ def toEllipse(rotatedrect):
 		rect.angle*scipy.pi/180)
 	return toreturn
 
-def circleFromParams_eye(eye,params):
-	if (params.radius == None):
-		logger.warning("dafaq, gimme params pls")
-		return geometry.Circle3D()
-
-	radial = auxiliary_functions.sph2cart(1, params.theta, params.psi)
-	return geometry.Circle3D(eye.center + eye.radius*radial,radial, params.radius)
+def convert_fov(fov,width):
+	fov = fov*scipy.pi/180
+	focal_length = (width/2)/np.tan(fov/2)
+	return focal_length
 
 class PupilParams: #was a structure in C
 	def __init__(self, theta = 0, psi = 0, radius = 0):
@@ -55,7 +52,7 @@ class PupilParams: #was a structure in C
 		return "PupilParams Class: Theta" + str(self.theta) + " psi " + str(self.psi) + " r " + str(self.radius)
 
 class Pupil: #data structure for a pupil
-	def __init__(self, ellipse = geometry.Ellipse(), focal_length = 879.193, radius = 1):
+	def __init__(self, ellipse = geometry.Ellipse(), focal_length = None, radius = 1):
 		self.ellipse = ellipse
 		self.circle = geometry.Circle3D() #may delete later
 		self.projected_circles = projection.unproject(self.ellipse,circle_radius = radius, focal_length = focal_length)
@@ -69,13 +66,13 @@ class Pupil: #data structure for a pupil
 #the class
 class Sphere_Fitter():
 
-	def __init__(self, focal_length = 600, region_band_width = 5, region_step_epsilon = 0.5):
+	def __init__(self, focal_length = 554.256, region_band_width = 5, region_step_epsilon = 0.5):
 		#initialize based on what was done in singleeyefitter.cpp
-		self.focal_length = focal_length
+		self.focal_length = focal_length #879.193 is what I have set in the cpp file.
 		self.camera_center = np.array([0,0,0])
 		self.eye = geometry.Sphere() #model of our eye. geometry.sphere()
 		self.projected_eye = geometry.Ellipse() #ellipse that is the projected eye sphere
-		self.observations = [] #array containing elements in pupil class
+		self.observations = [] #array containing elements in pupil class, originally "pupils"
 		self.model_version = 0
 
 		# self.region_band_width = region_band_width
@@ -88,6 +85,14 @@ class Sphere_Fitter():
 		#ellipse is the ellipse of pupil in camera image
 		self.observations.append(Pupil(ellipse = ellipse, focal_length = self.focal_length))
 
+	def add_pupil_labs_observation(self,pupil_ellipse):
+		converted_ellipse = geometry.Ellipse(pupil_ellipse = pupil_ellipse)
+		self.observations.append(Pupil(ellipse = converted_ellipse, focal_length = self.focal_length))
+
+	def get_projected_circle(self,projected_circle):
+		projected_conic = projection.project_circle(projected_circle, self.focal_length)
+		return geometry.Ellipse(conic = projected_conic)
+
 	def reset(self):
 		self.observations = []
 		eye = geometry.Sphere()
@@ -96,7 +101,90 @@ class Sphere_Fitter():
 	def circleFromParams(self, params):
 		# currently badly written
 		# params = angles + diameter (theta, psi, radius)
-		return circleFromParams_eye(self.eye,params)
+		if (params.radius == None):
+			logger.warning("dafaq, gimme params pls")
+			return None
+		# print "center " + str(self.eye.center)
+		# print "radius " + str(self.eye.radius)
+		radial = auxiliary_functions.sph2cart(1, params.theta, params.psi)
+		# print radial
+		return geometry.Circle3D(self.eye.center + self.eye.radius*radial,radial, params.radius)
+
+	def initialize_model(self):
+		if self.eye.center[0] == 0 and self.eye.center[1] == 0 and self.eye.center[2] == 0 and self.eye.radius == 0:
+			logger.warning("sphere has not been initialized")
+			return
+
+		eye_radius_acc = 0
+		eye_radius_count = 0
+		for pupil in self.observations:
+			if not pupil.circle:
+				continue
+			if not pupil.init_valid:
+				continue
+
+			line1 = geometry.Line3D(origin = self.eye.center, direction =  pupil.circle.normal)
+			line2 = geometry.Line3D(self.camera_center, pupil.circle.center/np.linalg.norm(pupil.circle.center))
+
+			# print "line 1 " +str(line1.origin) + " " + str(line1.direction)
+			# print "Line 2 " + str(line2.origin) + " " + str(line2.direction)
+
+			pupil_center = intersect.nearest_intersect_3D([line1, line2])
+			distance = np.linalg.norm(np.asarray(pupil_center) - np.asarray(self.eye.center)) #normalize this
+
+			eye_radius_acc += distance
+			eye_radius_count += 1
+
+		#set eye radius as mean distance from pupil centers to eye center
+		self.eye.radius = eye_radius_acc / eye_radius_count	
+		# print "eye radius " + str(self.eye.radius)
+		# print "eye acc " + str(eye_radius_acc)
+		#second estimate of pupil radius, used to get position of pupil on eye
+		for pupil in self.observations:
+			self.initialize_single_observation(pupil)
+
+		#scale eye to anthropomorphic average radius of 12mm
+		scale = 12.0 / self.eye.radius
+		self.eye.radius = 12.0
+		self.eye.center = [self.eye.center[0]*scale,self.eye.center[1]*scale,self.eye.center[2]*scale]
+		for pupil in self.observations:
+			pupil.params.radius = pupil.params.radius*scale
+			pupil.circle = self.circleFromParams(pupil.params)
+
+		#print every 30
+		self.count += 1
+		if self.count == 30:
+			logger.warning(self.eye)
+			self.count = 0
+		# logger.warning(self.eye)
+
+		self.model_version += 1
+
+	def initialize_single_observation(self,pupil):
+		# Ignore pupil circle normal, intersect pupil circle
+		# centre projection line with eyeball sphere
+		# try:
+		line1 = geometry.Line3D(self.camera_center, pupil.circle.center)
+		pupil_centre_sphere_intersect = intersect.sphere_intersect(line1,self.eye)
+		new_pupil_center = pupil_centre_sphere_intersect[0]
+		#given 3D position for pupil (rather than just projection line), recalculate pupil radius at position
+		pupil_radius_at_1 = pupil.circle.radius/pupil.circle.center[2] #z coordinate
+		new_pupil_radius = pupil_radius_at_1 * new_pupil_center[2]
+
+		#parametrize new pupil position using spherical coordinates
+		center_to_pupil = np.asarray(new_pupil_center) - np.asarray(self.eye.center)
+		r = np.linalg.norm(center_to_pupil)
+		pupil.params.theta = np.arccos(center_to_pupil[1]/r)
+		# print center_to_pupil[2]/center_to_pupil[0]
+		pupil.params.psi = np.arctan(center_to_pupil[2]/center_to_pupil[0])
+		pupil.params.radius = new_pupil_radius
+		#update pupil circle to match new parameter
+		pupil.circle = self.circleFromParams(pupil.params)
+		# except:
+			# logger.warning("something has gone wrong in EyeModelFitter.initialize_single_observation()")
+
+		#return pupil.circle
+
 
 	def unproject_observations(self,pupil_radius = 1, eye_z = 20): 
 		# ransac default to false so I skip for loop (haven't implemented it yet)
@@ -106,7 +194,7 @@ class Sphere_Fitter():
 			logger.error("Need at least two observations")
 			return
 		pupil_unprojection_pairs = [] #each element should be [Circle.Cirle3D, Circle.Circle3D]
-		pupil_gazelines_proj = [] #it is a vector<line> !!
+		self.pupil_gazelines_proj = [] #it is a vector<line> !!
 
 		for pupil in self.observations:
 			""" get pupil circles
@@ -134,9 +222,12 @@ class Sphere_Fitter():
 			v_proj = projection.project_point(v + c, self.focal_length) - c_proj
 			v_proj = v_proj/np.linalg.norm(v_proj) #normalizing
 
+			c_proj = np.array([c_proj[0][0],c_proj[1][0]])
+			v_proj = np.array([v_proj[0][0],v_proj[1][0]])
 			pupil_unprojection_pairs.append(unprojection_pair)
 			line = geometry.Line2D(c_proj, v_proj)
-			pupil_gazelines_proj.append(line)
+			# print line
+			self.pupil_gazelines_proj.append(line)
 
 		""" Get eyeball center
 			Find a least-squares 'intersection' (point nearest to all lines) of
@@ -146,7 +237,6 @@ class Sphere_Fitter():
 			(This has to be done here because it's used by the pupil circle disambiguation)
 		"""
 		eye_center_proj = []
-		valid_eye = bool
 
 		# if (use_ransac):
 		# 	""" TO BE IMPLEMENTED (or maybe I won't bother since ransac isn't most important part"""
@@ -154,20 +244,22 @@ class Sphere_Fitter():
 		# else:
 		for pupil in self.observations:
 			pupil.init_valid = True
-		eye_center_proj = intersect.nearest_intersect_2D(pupil_gazelines_proj)
+		eye_center_proj = intersect.nearest_intersect_2D(self.pupil_gazelines_proj)
 		eye_center_proj = np.reshape(eye_center_proj,(2,))
+		# print eye_center_proj
 		valid_eye = True
 
 		if (valid_eye):
 			self.eye.center = [eye_center_proj[0] * eye_z / self.focal_length,
 				eye_center_proj[1] * eye_z / self.focal_length, eye_z] #force it to be a 3x1 array
+			self.eye.center = np.reshape(np.array(self.eye.center),(3,))
 			self.eye.radius = 1
 			self.projected_eye = projection.project_sphere(self.eye, self.focal_length)
 
 			for i in xrange(len(self.observations)):
 				#disambiguate pupil circles using projected eyeball center
 				pupil_pair = pupil_unprojection_pairs[i]
-				line = pupil_gazelines_proj[i]
+				line = self.pupil_gazelines_proj[i]
 				c_proj = np.reshape(line.origin, (2,))
 				v_proj = np.reshape(line.direction, (2,))
 
@@ -176,7 +268,6 @@ class Sphere_Fitter():
 					self.observations[i].circle = pupil_pair[0]
 				else: 
 					self.observations[i].circle = pupil_pair[1]
-				#print self.observations[i].circle
 		else:
 			#no inliers, so no eye
 			self.eye = Sphere.Sphere()
@@ -188,27 +279,21 @@ class Sphere_Fitter():
 
 		self.model_version += 1
 
-		#print every 30
-		self.count += 1
-		if self.count == 30:
-			logger.warning(self.eye)
-			self.count = 0
+
 
 if __name__ == '__main__':
 
 	#testing stuff
 	huding = Sphere_Fitter()
-	if huding.projected_eye== [0,0]:
-		print "huding"
-	print "hudong"
 
-	#testing unproject_observation
-	ellipse1 = geometry.Ellipse((-141.07,72.6412),46.0443, 34.5685, 0.658744*scipy.pi)
-	ellipse2 = geometry.Ellipse((-134.405,98.3423),45.7818, 36.7225, 0.623024*scipy.pi)
-	ellipse3 = geometry.Ellipse((75.7523,68.8315),60.8489, 55.8412, 0.132388*scipy.pi)
-	ellipse4 = geometry.Ellipse((-76.9547,52.0801),51.8554, 44.3508, 0.753157*scipy.pi)
-	ellipse5 = geometry.Ellipse((-73.8259,5.54398),64.1682, 48.5875, 0.810757*scipy.pi)
-	ellipse6 = geometry.Ellipse((-62.2873,-60.9237),41.1463, 23.5819, 0.864127*scipy.pi)
+	#testing unproject_observation, data from singleeyefitter/img_small
+	ellipse1 = geometry.Ellipse((-76.9547,52.0801),51.8554, 44.3508, 0.753157*scipy.pi)
+	ellipse2 = geometry.Ellipse((75.7523,68.8315),60.8489, 55.8412, 0.132388*scipy.pi)
+	ellipse3 = geometry.Ellipse((-134.405,98.3423),45.7818, 36.7225, 0.623024*scipy.pi)	
+	ellipse4 = geometry.Ellipse((-62.2873,-60.9237),41.1463, 23.5819, 0.864127*scipy.pi)
+	ellipse5 = geometry.Ellipse((-141.07,72.6412),46.0443, 34.5685, 0.658744*scipy.pi)
+	ellipse6 = geometry.Ellipse((-73.8259,5.54398),64.1682, 48.5875, 0.810757*scipy.pi)
+	ellipse7 = geometry.Ellipse((32.4647,44.9944),56.4553,51.4132, 0.0248442*scipy.pi)
 
 	huding.add_observation(ellipse1)
 	huding.add_observation(ellipse2)
@@ -216,11 +301,9 @@ if __name__ == '__main__':
 	huding.add_observation(ellipse4)
 	huding.add_observation(ellipse5)
 	huding.add_observation(ellipse6)
+	huding.add_observation(ellipse7)
 
 	huding.unproject_observations()
-	print huding.projected_eye
-
-	print huding.circleFromParams(PupilParams(1,1,50))
-
-	lol = huding.eye
-	print circleFromParams_eye(lol, PupilParams(1,1,12))
+	print huding.eye
+	huding.initialize_model()
+	print huding.eye

@@ -111,7 +111,7 @@ def project_sphere(sphere,focal_length):
 def project_point(point,focal_length):
 	# print np.array(point)
 	# print np.array(point).shape
-	return [focal_length*np.array(point)[0]/point[2],focal_length*np.array(point)[1]/point[2]]
+	return np.array([focal_length*np.array(point)[0]/point[2],focal_length*np.array(point)[1]/point[2]])
 
 def unproject(ellipse,circle_radius,focal_length):
 	circle = geometry.Circle3D()
@@ -259,8 +259,10 @@ def unproject(ellipse,circle_radius,focal_length):
 		if (np.dot(gaze,center) > 0):
 			gaze = -gaze
 		gaze = gaze/np.linalg.norm(gaze) #normalizing
+		gaze = np.array([gaze[0,0],gaze[0,1],gaze[0,2]]) #making it 3 instead of 3x1
 
 		center = np.reshape(center,3)
+		center = np.array([center[0,0],center[0,1],center[0,2]]) #making it 3 instead of 3x1
 
 		solutions[i] = geometry.Circle3D(center,gaze,circle_radius)
 
@@ -269,21 +271,50 @@ def unproject(ellipse,circle_radius,focal_length):
 if __name__ == '__main__':
 
 	#testing uproject
-	ellipse = geometry.Ellipse((150.254,122.157),68.3431,33.9279,0.958216*scipy.pi)
-	huding = unproject(ellipse,1,1030.3) 
+	ellipse = geometry.Ellipse((41.84,74.0696),67.413,  63.518, 0.0462735*scipy.pi)
+	print ellipse
+	huding = unproject(ellipse,1,879.193) 
 	print huding[0]
+	print huding[1]
+	print " "
+	huconic = project_circle(huding[0],879.193)
+	print "first " + str(huconic)
+	# huellipse = geometry.Ellipse(conic = huconic)
+	# print huellipse
+	print " "
+	huconic = project_circle(huding[1],879.193)
+	print "second " + str(huconic)
+	# huellipse = geometry.Ellipse(conic = huconic)
+	# print huellipse
+
+	# ellipse = geometry.Ellipse((-31.3097,81.5964),69.4016,  65.3008, 0.79149*scipy.pi)
+	# print ellipse
+	# huding = unproject(ellipse,1,879.193) 
+	# print huding[0]
+	# print huding[1]
+	# print " "
+	# huconic = project_circle(huding[0],1030.3)
+	# print "first " + str(huconic)
+	# huellipse = geometry.Ellipse(conic = huconic)
+	# print huellipse
+	# print " "
+	# huconic = project_circle(huding[1],1030.3)
+	# print "second " + str(huconic)
+	# huellipse = geometry.Ellipse(conic = huconic)
+	# print huellipse
+
 	#sol0: Circle { center: (0.682255,0.533441,4.72456), normal: (-0.188279,-0.909715,-0.370094), radius: 1 }
 
 	print " "
 
-	ellipse = geometry.Ellipse((-152.295,157.418),46.7015,32.4274,0.00458883*scipy.pi)
-	huding = unproject(ellipse,1,1030.3) 
-	print huding[0] 
+	# ellipse = geometry.Ellipse((-152.295,157.418),46.7015,32.4274,0.00458883*scipy.pi)
+	# huding = unproject(ellipse,1,1030.3) 
+	# print huding[0] 
 	#sol0: Circle { center: (-2.23168,2.29378,15.1334), normal: (0.124836,-0.81497,-0.565897), radius: 1 }
 
 	# testing project_circle
-	circle = geometry.Circle3D([1.35664,-0.965954,9.33736],[0.530169,-0.460575,-0.711893],1)
-	print project_circle(circle,1030.3) #correct
+	# circle = geometry.Circle3D([1.35664,-0.965954,9.33736],[0.530169,-0.460575,-0.711893],1)
+	# print project_circle(circle,1030.3) #correct
 	# circle = geometry.Circle3D([-1.36026,0.415986,4.9436],[-0.701632,0.102242,-0.705166],1)
 	# print project_circle(circle,1030.3) #correct
 	# circle = geometry.Circle3D((0.68941,0.58537,4.71737),(0.0464665,0.794044,-0.606082),1)
@@ -294,11 +325,11 @@ if __name__ == '__main__':
 	# print project_circle(circle,1030.3) #correct
 
 	#testing project_point
-	point = [0.493976,-0.376274,4.35446]
-	print project_point(point,1030.3) #good
+	# point = [0.493976,-0.376274,4.35446]
+	# print project_point(point,1030.3) #good
 
 	#testing project_sphere
 	# sphere = geometry.Sphere(center=[-12.3454,5.22129,86.7681],radius=12)
 	# print project_sphere(sphere,1030.3) #GOOD
-	sphere = geometry.Sphere(center=(10.06,-6.20644,86.8967),radius=12)
-	print project_sphere(sphere,1030.3) #GOOD
+	# sphere = geometry.Sphere(center=(10.06,-6.20644,86.8967),radius=12)
+	# print project_sphere(sphere,1030.3) #GOOD

@@ -18,9 +18,11 @@ if __name__ == '__main__':
 
 import cv2
 import numpy as np
-from methods import *
+# from methods import *
 import logging
 logger = logging.getLogger(__name__)
 
 from canny_detector import Canny_Detector
+
+# import sphere_fitter
 
