@@ -33,12 +33,12 @@ def convert_fov(fov,width):
 
 class Visualizer():
 	def __init__(self,name = "unnamed", run_independently = False, width = 1280, height = 720, focal_length = 554.25625):
-		self.name = name
-		self.sphere = geometry.Sphere()
-		self.ellipses = [] #collection of ellipses to display
-		self.projected_lines = [] #collection of projected lines to display
+		self.sphere = geometry.Sphere([11,14,46],12) #the eyeball, initialized as something random
+		self.ellipses = [] #collection of ellipses 
+		self.video_frame = (np.linspace(0,1,num=(400*400*4))*255).astype(np.uint8).reshape((400,400,4)) #the randomized image, should be video frame
+		# self.screen_points = [] #collection of points
 
-		self.frame = None #video frame from eye
+		self.name = name
 		self._window = None
 		self.width = width
 		self.height = height
@@ -49,39 +49,46 @@ class Visualizer():
 
 		self.window_should_close = False
 
-		self.video_frame = (np.linspace(0,1,num=(400*400*4))*255).astype(np.uint8).reshape((400,400,4)) #the randomized image
-		self.test_sphere = geometry.Sphere([0,5,0],1)
 		self.test_ellipse = geometry.Ellipse((0,3),5,3,0)
 
 	############## DRAWING FUNCTIONS ##############################
 
+	def draw_rect(self):
+		glBegin(GL_QUADS)
+		glColor4f(0.0, 0.0, 0.5,0.2)  #set color to light blue
+		glVertex2f(0,0) 
+		glVertex2f(0 + 32, 0)
+		glVertex2f(0 + 32, 0 + 16)
+		glVertex2f(0, 0 + 16)
+		glEnd()  
+
 	def draw_frustum(self,f, scale=1):
-	    # average focal length
-	    #f = (K[0, 0] + K[1, 1]) / 2
-	    # compute distances for setting up the camera pyramid
-	    W = 0.5*self.width
-	    H = 0.5*self.height
-	    Z = f
-	    # scale the pyramid
-	    W *= scale
-	    H *= scale
-	    Z *= scale
-	    # draw it
-	    glColor4f( 1, 0.5, 0, 0.5 )
-	    glBegin( GL_LINE_LOOP )
-	    glVertex3f( 0, 0, 0 )
-	    glVertex3f( -W, H, Z )
-	    glVertex3f( W, H, Z )
-	    glVertex3f( 0, 0, 0 )
-	    glVertex3f( W, H, Z )
-	    glVertex3f( W, -H, Z )
-	    glVertex3f( 0, 0, 0 )
-	    glVertex3f( W, -H, Z )
-	    glVertex3f( -W, -H, Z )
-	    glVertex3f( 0, 0, 0 )
-	    glVertex3f( -W, -H, Z )
-	    glVertex3f( -W, H, Z )
-	    glEnd( )
+		# average focal length
+		#f = (K[0, 0] + K[1, 1]) / 2
+		# compute distances for setting up the camera pyramid
+		W = 0.5*self.width
+		H = 0.5*self.height
+		Z = f
+		# scale the pyramid
+		W *= scale
+		H *= scale
+		Z *= scale
+		# draw it
+		glColor4f( 1, 0.5, 0, 0.5 )
+		glBegin( GL_LINE_LOOP )
+		glVertex3f( 0, 0, 0 )
+		glVertex3f( -W, H, Z )
+		glVertex3f( W, H, Z )
+		glVertex3f( 0, 0, 0 )
+		glVertex3f( W, H, Z )
+		glVertex3f( W, -H, Z )
+		glVertex3f( 0, 0, 0 )
+		glVertex3f( W, -H, Z )
+		glVertex3f( -W, -H, Z )
+		glVertex3f( 0, 0, 0 )
+		glVertex3f( -W, -H, Z )
+		glVertex3f( -W, H, Z )
+		glEnd( )
 
 	def draw_coordinate_system(self,l=1):
 		# Draw x-axis line. RED
@@ -106,33 +113,50 @@ class Visualizer():
 		glVertex3f( 0, l, 0 )
 		glEnd( )
 
-	def draw_sphere(self,sphere):
+	def draw_sphere(self):
 		# this function draws the location of the eye sphere
 		glPushMatrix()
-		glColor3f(0.0, 0.0, 1.0)  
-		glTranslate(sphere.center[0], sphere.center[1], sphere.center[2])
-		glutWireSphere(sphere.radius,20,20)
+		glColor3f(0.0, 0.0, 1.0)  #set color to blue
+		glTranslate(self.sphere.center[0], self.sphere.center[1], self.sphere.center[2])
+		glutWireSphere(self.sphere.radius,20,20)
+		glPopMatrix()
+
+	def draw_all_ellipses(self):
+		# draws all ellipses in self.ellipses.
+		glPushMatrix()
+		for ellipse in self.ellipses:
+			glColor3f(0.0, 1.0, 0.0)  #set color to green
+			glTranslate(ellipse.center[0], ellipse.center[1], 0) 
+			glBegin(GL_LINE_LOOP) #draw ellipse
+			for i in xrange(45):
+				rad = i*16*scipy.pi/360.
+				glVertex2f(np.cos(rad)*ellipse.major_radius,np.sin(rad)*ellipse.minor_radius)	
+			glEnd()
+			glTranslate(-ellipse.center[0], -ellipse.center[1], 0) #untranslate
+
+			d = np.array([self.sphere.center[0]-ellipse.center[0],self.sphere.center[1]-ellipse.center[1],self.sphere.center[2]]) #direction
+			d = d/np.linalg.norm(d)			
+			el_center = np.array([ellipse.center[0],ellipse.center[1],0])	
+			glutils.draw_polyline3d([self.sphere.center,el_center-d],color=RGBA(0.4,0.5,0.3,1)) #draw line
 		glPopMatrix()
 
 	def draw_ellipse(self,ellipse):
+		#draw a single ellipse
 		glPushMatrix()  
+		glColor3f(0.0, 1.0, 0.0)  #set color to green
 		glTranslate(ellipse.center[0], ellipse.center[1], 0)
 		glBegin(GL_LINE_LOOP)
-		for i in xrange(360):
-			rad = i*2*scipy.pi/360.
+		for i in xrange(30): #originally 360, 2. Now 30, 24. Performance gains
+			rad = i*24*scipy.pi/360.
 			glVertex2f(np.cos(rad)*ellipse.major_radius,np.sin(rad)*ellipse.minor_radius)
 		glEnd()
 		glPopMatrix()
 
-	def draw_projected_line(self,line):
-		#draw a line from projected sphere center to the ellipse on frame.
-		""" TO BE IMPLEMENTED """
-		pass
-
-	def draw_video_screen(self,frame):
+	def draw_video_screen(self):
+		#function to draw self.video_frame
 		glPushMatrix()
-		tex_id = create_named_texture(frame.shape)
-		update_named_texture(tex_id,frame) #since image doesn't change, do not need to put in while loop
+		tex_id = create_named_texture(self.video_frame.shape)
+		update_named_texture(tex_id,self.video_frame) #since image doesn't change, do not need to put in while loop
 		draw_named_texture(tex_id)
 		glPopMatrix()
 
@@ -155,7 +179,6 @@ class Visualizer():
 		"""
 		adjust view onto our scene.
 		"""
-
 		glViewport(0, 0, w, h)
 		glMatrixMode(GL_PROJECTION)
 		glLoadIdentity()
@@ -215,11 +238,12 @@ class Visualizer():
 			self.trackball.push()
 
 			#THINGS I NEED TO DRAW
-			self.draw_sphere(self.test_sphere) #draw the 
-			self.draw_ellipse(self.test_ellipse)
-			self.draw_video_screen(self.video_frame)
-			self.draw_frustum(self.focal_length, scale = .01)
-			self.draw_coordinate_system(20)
+			self.draw_sphere() #draw the eyeball
+			self.draw_all_ellipses()
+			self.draw_rect()
+
+			# self.draw_frustum(self.focal_length, scale = .01)
+			self.draw_coordinate_system(4)
 
 			self.trackball.pop()
 			glfwSwapBuffers(self._window)
@@ -282,12 +306,17 @@ class Visualizer():
 		self.window_should_close = True
 
 if __name__ == '__main__':
- 	# huding = Visualizer("huding", run_independently = True)
- 	# huding.open_window()
- 	# a = 0
- 	# while huding.update_window():
- 	# 	a += 1
- 	# huding.close_window()
- 	# print a
+	huding = Visualizer("huding", run_independently = True)
 
- 	print convert_fov(60,640)
+	huding.ellipses.append(geometry.Ellipse((0,4),5,3,0))
+	huding.ellipses.append(geometry.Ellipse((2,4),2,3,0))
+	huding.ellipses.append(geometry.Ellipse((4,4),2,1,0))
+
+	huding.open_window()
+	a = 0
+	while huding.update_window():
+		a += 1
+	huding.close_window()
+	print a
+
+	# print convert_fov(60,640)

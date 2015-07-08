@@ -73,6 +73,7 @@ class Sphere_Fitter():
 		self.eye = geometry.Sphere() #model of our eye. geometry.sphere()
 		self.projected_eye = geometry.Ellipse() #ellipse that is the projected eye sphere
 		self.observations = [] #array containing elements in pupil class, originally "pupils"
+		self.scale = 1
 		self.model_version = 0
 
 		# self.region_band_width = region_band_width
@@ -144,11 +145,11 @@ class Sphere_Fitter():
 			self.initialize_single_observation(pupil)
 
 		#scale eye to anthropomorphic average radius of 12mm
-		scale = 12.0 / self.eye.radius
+		self.scale = 12.0 / self.eye.radius
 		self.eye.radius = 12.0
-		self.eye.center = [self.eye.center[0]*scale,self.eye.center[1]*scale,self.eye.center[2]*scale]
+		self.eye.center = [self.eye.center[0]*self.scale,self.eye.center[1]*self.scale,self.eye.center[2]*self.scale]
 		for pupil in self.observations:
-			pupil.params.radius = pupil.params.radius*scale
+			pupil.params.radius = pupil.params.radius*self.scale
 			pupil.circle = self.circleFromParams(pupil.params)
 
 		#print every 30
@@ -191,7 +192,7 @@ class Sphere_Fitter():
 		# this function for every ellipse from the image creates corresponding circles 
 		# unprojected to the pupil sphere model
 		if (len(self.observations) < 2):
-			logger.error("Need at least two observations")
+			logger.warning("Need at least two observations")
 			return
 		pupil_unprojection_pairs = [] #each element should be [Circle.Cirle3D, Circle.Circle3D]
 		self.pupil_gazelines_proj = [] #it is a vector<line> !!
@@ -275,11 +276,16 @@ class Sphere_Fitter():
 			# arbitrarily pick first circle
 			for i in xrange(len(self.observations)):
 				pupil_pair = pupil_unprojection_pairs[i]
-				self.pupil_ellipse_yearray[i].circle = pupil_pair[0]
+				self.observations[i].circle = pupil_pair[0]
+
+		#print every 30
+		# self.count += 1
+		# if self.count == 30:
+		# 	logger.warning(self.eye)
+		# 	self.count = 0
+		# logger.warning(self.eye)
 
 		self.model_version += 1
-
-
 
 if __name__ == '__main__':
 

@@ -271,7 +271,7 @@ def unproject(ellipse,circle_radius,focal_length):
 if __name__ == '__main__':
 
 	#testing uproject
-	ellipse = geometry.Ellipse((41.84,74.0696),67.413,  63.518, 0.0462735*scipy.pi)
+	ellipse = geometry.Ellipse((-92.049,33.9655), 66.3554, 52.3161, 0.752369*scipy.pi)
 	print ellipse
 	huding = unproject(ellipse,1,879.193) 
 	print huding[0]
@@ -279,13 +279,13 @@ if __name__ == '__main__':
 	print " "
 	huconic = project_circle(huding[0],879.193)
 	print "first " + str(huconic)
-	# huellipse = geometry.Ellipse(conic = huconic)
-	# print huellipse
+	huellipse = geometry.Ellipse(conic = huconic)
+	print huellipse
 	print " "
 	huconic = project_circle(huding[1],879.193)
 	print "second " + str(huconic)
-	# huellipse = geometry.Ellipse(conic = huconic)
-	# print huellipse
+	huellipse = geometry.Ellipse(conic = huconic)
+	print huellipse
 
 	# ellipse = geometry.Ellipse((-31.3097,81.5964),69.4016,  65.3008, 0.79149*scipy.pi)
 	# print ellipse

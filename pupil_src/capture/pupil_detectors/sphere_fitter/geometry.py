@@ -212,18 +212,18 @@ class Ellipse:
 
 	def initialize_by_pupil_ellipse(self, pupil_ellipse):
 		x = pupil_ellipse['center'][0] #- 320 #- width/2 320
-		y = pupil_ellipse['center'][1]# - 240 #- height/2 240
+		y = pupil_ellipse['center'][1] #- 240 #- height/2 240
 		self.center = np.array([x,y]) #shift location
-		self.angle = pupil_ellipse['angle']*scipy.pi*scipy.pi/180 #convert degrees to radians
+		# self.angle = pupil_ellipse['angle']*scipy.pi/180 #convert degrees to radians
 		a,b = pupil_ellipse['axes']
 		if a > b:
 			self.major_radius = a/2
 			self.minor_radius = b/2
-			# self.angle = pupil_ellipse['angle']*scipy.pi*scipy.pi/180 #convert degrees to radians
+			self.angle = pupil_ellipse['angle']*scipy.pi/180 #convert degrees to radians
 		else: 
 			self.major_radius = b/2
 			self.minor_radius = a/2
-			# self.angle = (pupil_ellipse['angle']-180)*scipy.pi*scipy.pi/180
+			self.angle = (pupil_ellipse['angle']+90)*scipy.pi/180
 
 	def _initialize_by_conic(self, conic):
 		#to initialize with a conic, create the ellipse first (temp = Ellipse())
@@ -290,6 +290,7 @@ class Ellipse:
 		self.major_radius = self.major_radius*scale
 		self.minor_radius = self.minor_radius*scale
 		self.angle = self.angle*scale
+		return self
 
 	def pointAlongEllipse(self, theta):
 		#theta is the angle
@@ -357,6 +358,7 @@ if __name__ == '__main__':
 	print hucon
 	huding2 = Ellipse(conic = hucon)
 	print huding2
+	print huding2.scale(0.5)
 	hucon2 = Conic(huding2)
 	print hucon2
 
