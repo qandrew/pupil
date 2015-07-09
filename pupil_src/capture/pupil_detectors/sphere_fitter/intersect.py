@@ -117,7 +117,6 @@ def nearest_intersect_2D(lines):
 def sphere_intersect(line,sphere):
 	#intersection between a line and a sphere, originally called intersect(line,sphere)
 	#line should be geometry.line3D() class, sphere is geometry.sphere() class
-	"""I have not tested if this function works correctly"""
 
 	v = line.direction
 	p = line.origin #put p at origin
@@ -125,7 +124,7 @@ def sphere_intersect(line,sphere):
 	r = sphere.radius
 
 	# from wikipedia :)
-	vcvc_cc_rr = np.square(np.dot(v,c) - np.dot(c,c) + np.square(r))
+	vcvc_cc_rr = np.square(np.dot(v,c)) - np.dot(c,c) + np.square(r)
 	if (vcvc_cc_rr < 0):
 		logger.warning("NO INTERSECTION between line and sphere")
 		return
@@ -134,6 +133,7 @@ def sphere_intersect(line,sphere):
 
 	p1 = p + s1*v
 	p2 = p + s2*v
+
 	return (p1,p2) #a line intersects a sphere at two points
 
 
@@ -149,9 +149,9 @@ if __name__ == '__main__':
 	# print intersect_2D_lines(huding, huding2)
 
 	#testing nearest_intersect_3D
-	huding = geometry.Line3D([0.835233,3.67143,20], [-0.303085,-0.54173,-0.784008])
-	huding2 = geometry.Line3D([0, 0, 0], [-0.0843631, 0.00459802, 0.996424])
-	print nearest_intersect_3D([huding, huding2])
+	# huding = geometry.Line3D([0.835233,3.67143,20], [-0.303085,-0.54173,-0.784008])
+	# huding2 = geometry.Line3D([0, 0, 0], [-0.0843631, 0.00459802, 0.996424])
+	# print nearest_intersect_3D([huding, huding2])
 
 	# huding = Line3D([ 0.,  0, 0], [ -0.427425,-0.293268,-0.855162])
 	# huding2 = Line3D([0, 0, 0], [ -0.150507,0.109365,0.982541])
@@ -164,5 +164,12 @@ if __name__ == '__main__':
 	# huding = Line3D([0.835451, 3.67313, 20],[0.0687859, -0.42695, -0.901655])
 	# huding2 = Line3D([0, 0, 0],[0.0852856, 0.0771611, 0.993364])
 	# print nearest_intersect_3D([huding, huding2])
+
+	#testing sphere_intersect
+	l1 = geometry.Line3D((0,0,0),(0.0471124,0.0831234, 0.995425))
+	s1 = geometry.Sphere((0.671767,3.56112,20),6.41521)
+	sphere_intersect(l1,s1)[0]
+	# print sphere_intersect(l1,s1)[1]
+
 
 	print "done"

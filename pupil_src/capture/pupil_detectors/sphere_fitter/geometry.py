@@ -97,8 +97,8 @@ class Conic:
 		    
 		     Collecting terms gives:
 		"""
-
-		toreturn = Conic(A*np.square(a(0, 0)) + B*a(0, 0)*a(1, 0) + C*np.square(a(1, 0)),
+		toreturn = Conic()
+		toreturn.init_by_coefficients(A*np.square(a(0, 0)) + B*a(0, 0)*a(1, 0) + C*np.square(a(1, 0)),
                 2 * A*a(0, 0)*a(0, 1) + B*a(0, 0)*a(1, 1) + B*a(0, 1)*a(1, 0) + 2 * C*a(1, 0)*a(1, 1),
                 A*np.square(a(0, 1)) + B*a(0, 1)*a(1, 1) + C*np.square(a(1, 1)),
                 2 * A*a(0, 0)*t(0) + B*a(0, 0)*t(1) + B*a(1, 0)*t(0) + 2 * C*a(1, 0)*t(1) + D*a(0, 0) + E*a(1, 0),

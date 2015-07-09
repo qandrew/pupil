@@ -3,6 +3,16 @@
 	I want to port Projection.h into this python script here
 	June 25 2015
 
+	There are two ways to run our four functions in this file:
+	you can either feed the camera intrinsic or supply a simple focal length.
+	The focal_length method was used by Lech Swirsky, but it is simpler 
+	and does not match our coordinate system. Thus, we use the camera intrinsic
+
+	project circle: projects a 3D circle to a conic/ellipse in 2D frame plane
+	project sphere: projects a 3D sphere to an ellipse in 2D frame plane
+	project point: projects a 3D point to a point in 2D frame plane
+	unproject: given ellipse, return two 3D circles of its unprojection
+
 """
 
 #THIS FILE IS INCOMPLETE!
@@ -20,7 +30,6 @@ def project_circle(circle,focal_length):
 	c = circle.center
 	n = circle.normal
 	r = circle.radius
-	#f is the focal length
 
 	"""INSTRUCTIONS
 		Construct cone with circle as base and vertex v = (0,0,0).
@@ -92,26 +101,64 @@ def project_circle(circle,focal_length):
 	H = 2*(c2r2*n[0]*n[1] - cn*(n[0]*c[1] + n[1]*c[0]))
 
 	conic = geometry.Conic()
-	conic.A = ABC[0]
-	conic.B = H
-	conic.C = ABC[1]
-	conic.D = G*focal_length
-	conic.E = F*focal_length
-	conic.F = ABC[2]*np.square(focal_length)
+	conic.init_by_coefficients(ABC[0],H,ABC[1],G*focal_length,F*focal_length,ABC[2]*np.square(focal_length))
 	return conic
+
+def project_circle_to_ellipse(circle,intrinsics,extrinsics = None):
+	#takes in circle and outputs projected ellipse. It is easier to translate ellipse than conic
+	"""NEED TO TEST THIS FUNCTION"""
+
+	if circle == None or intrinsics == None:
+		logger.error("please supply circle and/or intrinsics matrix")
+		return
+	c = circle.center
+	n = circle.normal
+	r = circle.radius
+	focal_length = intrinsics[0,0]
+
+	cn = np.dot(n,c)
+	c2r2 = np.dot(c,c) - np.square(r)
+	ABC = (np.square(cn) - 2.0*cn*c*n + c2r2*np.square(n))
+	F = 2*(c2r2*n[1]*n[2] - cn*(n[1]*c[2] + n[2]*c[1]))
+	G = 2*(c2r2*n[2]*n[0] - cn*(n[2]*c[0] + n[0]*c[2]))
+	H = 2*(c2r2*n[0]*n[1] - cn*(n[0]*c[1] + n[1]*c[0]))
+
+	conic = geometry.Conic()
+	conic.init_by_coefficients(ABC[0],H,ABC[1],G*focal_length,F*focal_length,ABC[2]*np.square(focal_length))
+	ellipse = geometry.Ellipse(conic = conic)
+	ellipse.center = np.array([ellipse.center[0] - intrinsics[0,2], ellipse.center[1] - intrinsics[1,2]]) #shift ellipse center
+	return ellipse
 
 def project_sphere(sphere,focal_length):
 	return geometry.Ellipse(
-			[focal_length * sphere.center[0] / sphere.center[2],focal_length * sphere.center[1] / sphere.center[2]], #ellipse center
-			focal_length * sphere.radius / sphere.center[2], #major
-			focal_length * sphere.radius / sphere.center[2], #minor
-			0 #angle
-		)
+		[focal_length * sphere.center[0] / sphere.center[2],focal_length * sphere.center[1] / sphere.center[2]], #ellipse center
+		focal_length * sphere.radius / sphere.center[2], # major
+		focal_length * sphere.radius / sphere.center[2], # minor
+		0 ) # angle
+
+def project_sphere_camera_intrinsics(sphere,intrinsics,extrinsics = None):
+	center = project_point_camera_intrinsics(sphere.center,intrinsics,extrinsics)
+	radius = sphere.radius/sphere.center[2] * intrinsics[0,0] #scale based on fx in camera intrinsic matrix
+	return geometry.Ellipse(center,radius,radius,0)
 
 def project_point(point,focal_length):
-	# print np.array(point)
-	# print np.array(point).shape
 	return np.array([focal_length*np.array(point)[0]/point[2],focal_length*np.array(point)[1]/point[2]])
+
+def project_point_camera_intrinsics(point = None,intrinsics = None,extrinsics = None):
+	#camera intrinsics matrix and extrinsics is rotation-translation matrix. 
+	if point == None or intrinsics == None:
+		logger.error("please supply point and/or intrinsics matrix")
+		return
+	if extrinsics == None:
+		#set extrinsics matrix as identity matrix appended with 0 [I|0]
+		extrinsics = np.matrix('1 0 0 0 ; 0 1 0 0 ; 0 0 1 0')
+	point = np.array(point) #force to np array
+	point = np.append(point,[1]) #convert point to homogeneous coordinates
+	point = point.reshape((4,1))
+	projected_pt = intrinsics * extrinsics * point
+	projected_pt = (projected_pt/projected_pt[-1])[:-1] #convert back to cartesian
+	projected_pt = projected_pt.reshape(2)
+	return np.array(projected_pt)
 
 def unproject(ellipse,circle_radius,focal_length):
 	circle = geometry.Circle3D()
@@ -268,44 +315,42 @@ def unproject(ellipse,circle_radius,focal_length):
 
 	return solutions
 
+def unproject_camera_intrinsics(ellipse,circle_radius,intrinsics, extrinsics = None):
+
+	"""NEED TO TEST THIS FUNCTION"""
+
+	# essentially shift ellipse center by the translation cx and cy from camera matrix
+	# and feed this back into unproject()
+	if extrinsics == None:
+		#set extrinsics matrix as identity matrix appended with 0 [I|0]
+		extrinsics = np.matrix('1 0 0 0 ; 0 1 0 0 ; 0 0 1 0')
+	focal_length = intrinsics[0,0]
+	ellipse.center = np.array([ellipse.center[0] - intrinsics[0,2], ellipse.center[1] - intrinsics[1,2]])
+
+	return unproject(ellipse,circle_radius,focal_length)
+
 if __name__ == '__main__':
 
-	#testing uproject
-	ellipse = geometry.Ellipse((-92.049,33.9655), 66.3554, 52.3161, 0.752369*scipy.pi)
-	print ellipse
-	huding = unproject(ellipse,1,879.193) 
-	print huding[0]
-	print huding[1]
-	print " "
-	huconic = project_circle(huding[0],879.193)
-	print "first " + str(huconic)
-	huellipse = geometry.Ellipse(conic = huconic)
-	print huellipse
-	print " "
-	huconic = project_circle(huding[1],879.193)
-	print "second " + str(huconic)
-	huellipse = geometry.Ellipse(conic = huconic)
-	print huellipse
+	k = np.matrix('1000 0 10; 0 1000 10; 0 0 1')
 
-	# ellipse = geometry.Ellipse((-31.3097,81.5964),69.4016,  65.3008, 0.79149*scipy.pi)
+	#testing uproject
+	# ellipse = geometry.Ellipse((92.049,33.9655), 66.3554, 52.3161, 0.752369*scipy.pi)
 	# print ellipse
-	# huding = unproject(ellipse,1,879.193) 
+	# huding = unproject(ellipse,1,1000) #879.193
 	# print huding[0]
 	# print huding[1]
+	# huding = unproject_camera_intrinsics(ellipse,1,k)
+	# print huding[0]
 	# print " "
-	# huconic = project_circle(huding[0],1030.3)
+	# huconic = project_circle(huding[0],879.193)
 	# print "first " + str(huconic)
 	# huellipse = geometry.Ellipse(conic = huconic)
 	# print huellipse
 	# print " "
-	# huconic = project_circle(huding[1],1030.3)
+	# huconic = project_circle(huding[1],879.193)
 	# print "second " + str(huconic)
 	# huellipse = geometry.Ellipse(conic = huconic)
 	# print huellipse
-
-	#sol0: Circle { center: (0.682255,0.533441,4.72456), normal: (-0.188279,-0.909715,-0.370094), radius: 1 }
-
-	print " "
 
 	# ellipse = geometry.Ellipse((-152.295,157.418),46.7015,32.4274,0.00458883*scipy.pi)
 	# huding = unproject(ellipse,1,1030.3) 
@@ -314,22 +359,20 @@ if __name__ == '__main__':
 
 	# testing project_circle
 	# circle = geometry.Circle3D([1.35664,-0.965954,9.33736],[0.530169,-0.460575,-0.711893],1)
-	# print project_circle(circle,1030.3) #correct
-	# circle = geometry.Circle3D([-1.36026,0.415986,4.9436],[-0.701632,0.102242,-0.705166],1)
-	# print project_circle(circle,1030.3) #correct
-	# circle = geometry.Circle3D((0.68941,0.58537,4.71737),(0.0464665,0.794044,-0.606082),1)
-	# print project_circle(circle,1030.3) #correct
-	# circle = geometry.Circle3D([-11.3327,11.8036,76.7857],[0.0843856,0.548524,-0.831865],5.07561)
-	# print project_circle(circle,1030.3) #correct
-	# circle = geometry.Circle3D([-21.9309,6.70676,79.7034],[-0.798796,0.123788,-0.588729],16.1225)
-	# print project_circle(circle,1030.3) #correct
+	# tempcon =  project_circle(circle,1000) 
+	# tempell = geometry.Ellipse(conic = tempcon)
+	# print tempcon
+	# print tempell
+	# print project_circle_to_ellipse(circle,k)
 
 	#testing project_point
-	# point = [0.493976,-0.376274,4.35446]
-	# print project_point(point,1030.3) #good
+	point = [0.493976,-0.376274,4.35446]
+	print project_point_camera_intrinsics(point, k, None)
+	print project_point(point,1000)
 
 	#testing project_sphere
 	# sphere = geometry.Sphere(center=[-12.3454,5.22129,86.7681],radius=12)
-	# print project_sphere(sphere,1030.3) #GOOD
+	# print project_sphere(sphere,1000)
+	# print project_sphere_camera_intrinsics(sphere,k)
 	# sphere = geometry.Sphere(center=(10.06,-6.20644,86.8967),radius=12)
 	# print project_sphere(sphere,1030.3) #GOOD

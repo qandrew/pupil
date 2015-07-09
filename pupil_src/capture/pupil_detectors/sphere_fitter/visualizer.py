@@ -35,6 +35,7 @@ class Visualizer():
 	def __init__(self,name = "unnamed", run_independently = False, width = 1280, height = 720, focal_length = 554.25625):
 		self.sphere = geometry.Sphere([11,14,46],12) #the eyeball, initialized as something random
 		self.ellipses = [] #collection of ellipses 
+		self.circles = [] #collection of all 3D circles on the sphere
 		self.video_frame = (np.linspace(0,1,num=(400*400*4))*255).astype(np.uint8).reshape((400,400,4)) #the randomized image, should be video frame
 		# self.screen_points = [] #collection of points
 
@@ -138,6 +139,20 @@ class Visualizer():
 			d = d/np.linalg.norm(d)			
 			el_center = np.array([ellipse.center[0],ellipse.center[1],0])	
 			glutils.draw_polyline3d([self.sphere.center,el_center-d],color=RGBA(0.4,0.5,0.3,1)) #draw line
+		glPopMatrix()
+
+	def draw_all_circles(self):
+		glPushMatrix()
+		glColor3f(0.0, 1.0, 0.0)  #set color to green
+		for circle in self.circles:
+			glTranslate(circle.center[0], circle.center[1], circle.center[2]) 
+			glBegin(GL_LINE_LOOP) #draw ellipse
+			for i in xrange(45):
+				rad = i*16*scipy.pi/360.
+				glVertex2f(np.cos(rad)*circle.radius,np.sin(rad)*ellipse.minor_radius)	
+			glEnd()
+			glTranslate(-circle.center[0], -circle.center[1], circle.center[2]) #untranslate
+
 		glPopMatrix()
 
 	def draw_ellipse(self,ellipse):
