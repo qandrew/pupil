@@ -126,8 +126,8 @@ def sphere_intersect(line,sphere):
 	# from wikipedia :)
 	vcvc_cc_rr = np.square(np.dot(v,c)) - np.dot(c,c) + np.square(r)
 	if (vcvc_cc_rr < 0):
-		logger.warning("NO INTERSECTION between line and sphere")
-		return
+		# logger.warning("NO INTERSECTION between line and sphere")
+		return None
 	s1 = np.dot(v,c) - np.sqrt(vcvc_cc_rr)
 	s2 = np.dot(v,c) + np.sqrt(vcvc_cc_rr)
 

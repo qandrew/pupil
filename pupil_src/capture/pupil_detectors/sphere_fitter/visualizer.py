@@ -32,18 +32,27 @@ def convert_fov(fov,width):
 	return focal_length
 
 class Visualizer():
-	def __init__(self,name = "unnamed", run_independently = False, width = 1280, height = 720, focal_length = 554.25625):
+	def __init__(self,name = "unnamed", run_independently = False, width = 1280, height = 720, focal_length = 554.25625, intrinsics = None):
 		self.sphere = geometry.Sphere([11,14,46],12) #the eyeball, initialized as something random
 		self.ellipses = [] #collection of ellipses 
 		self.circles = [] #collection of all 3D circles on the sphere
 		self.video_frame = (np.linspace(0,1,num=(400*400*4))*255).astype(np.uint8).reshape((400,400,4)) #the randomized image, should be video frame
 		# self.screen_points = [] #collection of points
 
+		if intrinsics == None:
+			intrinsics = np.identity(3)
+			if focal_length != None:
+				intrinsics[0,0] = focal_length
+				intrinsics[1,1] = focal_length
+				logger.warning('no camera intrinsic input, set to focal length')
+			else:
+				logger.warning('no camera intrinsic input, set to default identity matrix')
+		self.intrinsics = intrinsics #camera intrinsics of our webcam.
+
 		self.name = name
 		self._window = None
 		self.width = width
 		self.height = height
-		self.focal_length = focal_length
 		self.input = None
 		self.trackball = None
 		self.run_independently = run_independently
@@ -63,13 +72,13 @@ class Visualizer():
 		glVertex2f(0, 0 + 16)
 		glEnd()  
 
-	def draw_frustum(self,f, scale=1):
+	def draw_frustum(self, scale=1):
 		# average focal length
 		#f = (K[0, 0] + K[1, 1]) / 2
 		# compute distances for setting up the camera pyramid
 		W = 0.5*self.width
 		H = 0.5*self.height
-		Z = f
+		Z = self.intrinsics[0,0]
 		# scale the pyramid
 		W *= scale
 		H *= scale
@@ -142,14 +151,16 @@ class Visualizer():
 		glPopMatrix()
 
 	def draw_all_circles(self):
+		""" CURRENTLY INCORRECT """ 
 		glPushMatrix()
 		glColor3f(0.0, 1.0, 0.0)  #set color to green
 		for circle in self.circles:
+			norm = circle.radius
 			glTranslate(circle.center[0], circle.center[1], circle.center[2]) 
-			glBegin(GL_LINE_LOOP) #draw ellipse
+			glBegin(GL_LINE_LOOP) #draw circle
 			for i in xrange(45):
 				rad = i*16*scipy.pi/360.
-				glVertex2f(np.cos(rad)*circle.radius,np.sin(rad)*ellipse.minor_radius)	
+				glVertex3f(np.cos(rad)*circle.radius,np.sin(rad)*circle.radius,0)	
 			glEnd()
 			glTranslate(-circle.center[0], -circle.center[1], circle.center[2]) #untranslate
 
@@ -255,9 +266,10 @@ class Visualizer():
 			#THINGS I NEED TO DRAW
 			self.draw_sphere() #draw the eyeball
 			self.draw_all_ellipses()
+			self.draw_all_circles()
 			self.draw_rect()
 
-			# self.draw_frustum(self.focal_length, scale = .01)
+			# self.draw_frustum(scale = .01)
 			self.draw_coordinate_system(4)
 
 			self.trackball.pop()
@@ -326,6 +338,9 @@ if __name__ == '__main__':
 	huding.ellipses.append(geometry.Ellipse((0,4),5,3,0))
 	huding.ellipses.append(geometry.Ellipse((2,4),2,3,0))
 	huding.ellipses.append(geometry.Ellipse((4,4),2,1,0))
+
+	huding.circles.append(geometry.Circle3D((1,1,2),(1,0,0),3)) #pointing in x dir
+	huding.circles.append(geometry.Circle3D((1,2,1),(0,1,0),3)) #pointing in y dir
 
 	huding.open_window()
 	a = 0

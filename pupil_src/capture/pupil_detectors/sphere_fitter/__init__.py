@@ -171,6 +171,10 @@ class Sphere_Fitter():
 		# try:
 		line1 = geometry.Line3D(self.camera_center, pupil.circle.center/np.linalg.norm(pupil.circle.center))
 		pupil_centre_sphere_intersect = intersect.sphere_intersect(line1,self.eye)
+		if pupil_centre_sphere_intersect == None:
+			# logger.warning('no intersection') # the warning is already called in intersect.py
+			return
+
 		new_pupil_center = pupil_centre_sphere_intersect[0]
 		#given 3D position for pupil (rather than just projection line), recalculate pupil radius at position
 		pupil_radius_at_1 = pupil.circle.radius/pupil.circle.center[2] #z coordinate
@@ -187,9 +191,6 @@ class Sphere_Fitter():
 		pupil.circle = self.circleFromParams(pupil.params)
 		# except:
 			# logger.warning("something has gone wrong in EyeModelFitter.initialize_single_observation()")
-
-		#return pupil.circle
-
 
 	def unproject_observations(self,pupil_radius = 1, eye_z = 20): 
 		# ransac default to false so I skip for loop (haven't implemented it yet)
@@ -224,8 +225,8 @@ class Sphere_Fitter():
 			c_proj = np.array(c_proj)
 			v_proj = projection.project_point_camera_intrinsics(v + c, self.intrinsics) - c_proj
 			v_proj = v_proj/np.linalg.norm(v_proj) #normalizing
-			c_proj = np.array([c_proj[0][0],c_proj[0][1]]) #stupid formatting stuff
-			v_proj = np.array([v_proj[0][0],v_proj[0][1]])
+			# c_proj = np.array([c_proj[0][0],c_proj[0][1]]) #stupid formatting stuff
+			# v_proj = np.array([v_proj[0][0],v_proj[0][1]])
 			line = geometry.Line2D(c_proj, v_proj)
 			# print line
 			self.pupil_gazelines_proj.append(line)
@@ -256,6 +257,7 @@ class Sphere_Fitter():
 			self.eye.center = np.reshape(np.array(self.eye.center),(3,))
 			self.eye.radius = 1
 			self.projected_eye = projection.project_sphere_camera_intrinsics(self.eye, self.intrinsics)
+			# print self.projected_eye
 
 			for i in xrange(len(self.observations)):
 				#disambiguate pupil circles using projected eyeball center
@@ -320,5 +322,7 @@ if __name__ == '__main__':
 
 	huding.initialize_model()
 	print huding.eye
+
+	print huding.scale
 	# for pupil in huding.observations:
 	# 	print pupil.circle

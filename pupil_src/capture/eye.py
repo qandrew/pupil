@@ -186,7 +186,8 @@ def eye(g_pool,cap_src,cap_size,rx_from_world,eye_id=0):
     writer = None
 
     pupil_detector = Canny_Detector(g_pool)
-    eye_model = sphere_fitter.Sphere_Fitter(focal_length = 879.193)
+    intrinsics = np.matrix('879.193 0 320; 0 879.193 240; 0 0 1')
+    eye_model = sphere_fitter.Sphere_Fitter(intrinsics = intrinsics)
 
     # UI callback functions
     def set_scale(new_scale):
@@ -279,7 +280,7 @@ def eye(g_pool,cap_src,cap_size,rx_from_world,eye_id=0):
     fps_graph.label = "%0.0f FPS"
 
     #initialize visualizer
-    visual = visualizer.Visualizer("eye model", focal_length = eye_model.focal_length)
+    visual = visualizer.Visualizer("eye model", intrinsics = eye_model.intrinsics)
     visual.open_window()
 
     # Event loop
@@ -367,9 +368,10 @@ def eye(g_pool,cap_src,cap_size,rx_from_world,eye_id=0):
             draw_points_norm(((0,0),),size=20,color=cygl_rgba(1.,0.,0.,.5),sharpness=1.)
 
         #eye sphere fitter adding
-        if result['confidence'] > 0.8 and result['minor']/result['major'] < 0.7:
+        if result['confidence'] > 0.8 and result['minor']/result['major'] < 0.9:
             eye_model.add_pupil_labs_observation(result)
             visual.ellipses.append(eye_model.observations[-1].ellipse.scale(eye_model.scale))
+            # print eye_model.scale
 
             #draw the circle back as an ellipse
             newellipse = eye_model.get_projected_circle( eye_model.observations[-1].projected_circles[0] )
@@ -390,7 +392,7 @@ def eye(g_pool,cap_src,cap_size,rx_from_world,eye_id=0):
 
             # print eye_model.observations[-1].projected_circles[0]
             # print eye_model.observations[-1].circle #comparing how the circles have changed
-
+            # print eye_model.projected_eye.center
             cygl_draw_points([eye_model.projected_eye.center],20,cygl_rgba(1,1,0,.5)) #draw eye center
             # pts = cv2.ellipse2Poly( (int(eye_model.projected_eye.center[0]),
             #     int(eye_model.projected_eye.center[1])),
@@ -405,14 +407,6 @@ def eye(g_pool,cap_src,cap_size,rx_from_world,eye_id=0):
             #the eye model has been initialized
             for line in eye_model.pupil_gazelines_proj:
                 cygl_draw_polyline([line.origin-line.direction*500,line.origin+line.direction*500],1,cygl_rgba(0,1.0,0,.5))
-            # for pupil in eye_model.observations:
-            #     temp = projection.project_point(pupil.circle.center[0], eye_model.focal_length)
-            #     temp2 = projection.project_point(pupil.circle.center[0] + pupil.circle.normal[0], eye_model.focal_length)
-            #     temp[0] = temp[0] #- frame.width/2
-            #     temp[1] = temp[1] #- frame.height/2
-                # print "temp " + str(temp)
-                # print "temp2 " + str(temp2)
-                # cygl_draw_polyline([temp - temp2*500,temp + temp2*500],1,cygl_rgba(0,1.0,0,.5))
 
 
         # render graphs

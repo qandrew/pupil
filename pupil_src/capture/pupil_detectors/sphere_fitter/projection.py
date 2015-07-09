@@ -158,7 +158,8 @@ def project_point_camera_intrinsics(point = None,intrinsics = None,extrinsics = 
 	projected_pt = intrinsics * extrinsics * point
 	projected_pt = (projected_pt/projected_pt[-1])[:-1] #convert back to cartesian
 	projected_pt = projected_pt.reshape(2)
-	return np.array(projected_pt)
+	# print projected_pt[0,0]
+	return np.array([projected_pt[0,0],projected_pt[0,1]])
 
 def unproject(ellipse,circle_radius,focal_length):
 	circle = geometry.Circle3D()
@@ -366,7 +367,8 @@ if __name__ == '__main__':
 	# print project_circle_to_ellipse(circle,k)
 
 	#testing project_point
-	point = [0.493976,-0.376274,4.35446]
+	point = np.array([[0.493976],[-0.376274],[4.35446]])
+	print point
 	print project_point_camera_intrinsics(point, k, None)
 	print project_point(point,1000)
 
