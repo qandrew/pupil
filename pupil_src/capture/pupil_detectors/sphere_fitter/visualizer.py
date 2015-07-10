@@ -109,18 +109,18 @@ class Visualizer():
 		glVertex3f( l, 0, 0 )
 		glEnd( )
 
+		# Draw y-axis line. GREEN.
+		glColor3f( 0, 1, 0 )
+		glBegin( GL_LINES )
+		glVertex3f( 0, 0, 0 )
+		glVertex3f( 0, l, 0 )
+		glEnd( )
+
 		# Draw z-axis line. BLUE
 		glColor3f( 0, 0,1 )
 		glBegin( GL_LINES )
 		glVertex3f( 0, 0, 0 )
 		glVertex3f( 0, 0, l )
-		glEnd( )
-
-		# Draw y-axis line. GREEN. #not working... why? 
-		glColor3f( 0, 1, 0 )
-		glBegin( GL_LINES )
-		glVertex3f( 0, 0, 0 )
-		glVertex3f( 0, l, 0 )
 		glEnd( )
 
 	def draw_sphere(self):
@@ -156,13 +156,14 @@ class Visualizer():
 		glColor3f(0.0, 1.0, 0.0)  #set color to green
 		for circle in self.circles:
 			norm = circle.radius
-			glTranslate(circle.center[0], circle.center[1], circle.center[2]) 
+			glTranslate(circle.center[0], circle.center[1], circle.center[2])  #translate
+			glRotate(90,0,0,0)
 			glBegin(GL_LINE_LOOP) #draw circle
 			for i in xrange(45):
 				rad = i*16*scipy.pi/360.
-				glVertex3f(np.cos(rad)*circle.radius,np.sin(rad)*circle.radius,0)	
+				glVertex2f(np.cos(rad)*circle.radius,np.sin(rad)*circle.radius)	
 			glEnd()
-			glTranslate(-circle.center[0], -circle.center[1], circle.center[2]) #untranslate
+			glTranslate(-circle.center[0], -circle.center[1], -circle.center[2]) #untranslate
 
 		glPopMatrix()
 
@@ -265,7 +266,7 @@ class Visualizer():
 
 			#THINGS I NEED TO DRAW
 			self.draw_sphere() #draw the eyeball
-			self.draw_all_ellipses()
+			# self.draw_all_ellipses()
 			self.draw_all_circles()
 			self.draw_rect()
 
@@ -340,7 +341,7 @@ if __name__ == '__main__':
 	huding.ellipses.append(geometry.Ellipse((4,4),2,1,0))
 
 	huding.circles.append(geometry.Circle3D((1,1,2),(1,0,0),3)) #pointing in x dir
-	huding.circles.append(geometry.Circle3D((1,2,1),(0,1,0),3)) #pointing in y dir
+	huding.circles.append(geometry.Circle3D((0,0,0),(0,1,0),1)) #pointing in y dir
 
 	huding.open_window()
 	a = 0

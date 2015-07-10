@@ -375,10 +375,11 @@ def eye(g_pool,cap_src,cap_size,rx_from_world,eye_id=0):
 
             #draw the circle back as an ellipse
             newellipse = eye_model.get_projected_circle( eye_model.observations[-1].projected_circles[0] )
+            print newellipse
             pts = cv2.ellipse2Poly( (int(newellipse.center[0]), int(newellipse.center[1])), 
                 (int(newellipse.major_radius), int(newellipse.minor_radius)), 
                 int(newellipse.angle*180/scipy.pi), 0,360,15)
-            cygl_draw_polyline(pts,2,cygl_rgba(0,0,1,.5))
+            cygl_draw_polyline(pts,4,cygl_rgba(0,0,1,.5))
 
             newellipse = eye_model.get_projected_circle( eye_model.observations[-1].projected_circles[1] )
             pts = cv2.ellipse2Poly( (int(newellipse.center[0]), int(newellipse.center[1])), 

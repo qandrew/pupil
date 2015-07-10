@@ -55,7 +55,7 @@ class Pupil: #data structure for a pupil
 	def __init__(self, ellipse = geometry.Ellipse(), intrinsics = None, radius = 1):
 		self.ellipse = ellipse
 		self.circle = geometry.Circle3D() #may delete later
-		self.projected_circles = projection.unproject_camera_intrinsics(self.ellipse,circle_radius = radius, intrinsics= intrinsics)
+		self.projected_circles = projection.unproject_camera_intrinsics(self.ellipse,circle_radius = 10, intrinsics= intrinsics)
 		self.params = PupilParams()
 		self.init_valid = False
 
@@ -192,7 +192,7 @@ class Sphere_Fitter():
 		# except:
 			# logger.warning("something has gone wrong in EyeModelFitter.initialize_single_observation()")
 
-	def unproject_observations(self,pupil_radius = 1, eye_z = 20): 
+	def unproject_observations(self, eye_z = 20): 
 		# ransac default to false so I skip for loop (haven't implemented it yet)
 		# this function for every ellipse from the image creates corresponding circles 
 		# unprojected to the pupil sphere model
@@ -208,6 +208,12 @@ class Sphere_Fitter():
 				doesn't matter here, only their center and normal does.
 			"""
 			unprojection_pair = pupil.projected_circles
+
+			# print unprojection_pair[0]
+			# print unprojection_pair[1]
+			# print projection.project_point_camera_intrinsics(unprojection_pair[0].center,self.intrinsics)
+			# print projection.project_point_camera_intrinsics(unprojection_pair[1].center,self.intrinsics)
+			# print " "
 
 			""" get projected circles and gaze vectors
 				Project the circle centers and gaze vectors down back onto the image plane.
@@ -261,16 +267,15 @@ class Sphere_Fitter():
 
 			for i in xrange(len(self.observations)):
 				#disambiguate pupil circles using projected eyeball center
-				pupil_pair = self.observations[i].projected_circles
 				line = self.pupil_gazelines_proj[i]
 				c_proj = np.reshape(line.origin, (2,))
 				v_proj = np.reshape(line.direction, (2,))
 
 				if (np.dot(c_proj - eye_center_proj, v_proj) >= 0):
 					#check if v_proj going away from estimated eye center, take the one going away.
-					self.observations[i].circle = pupil_pair[0]
+					self.observations[i].circle = self.observations[i].projected_circles[0]
 				else: 
-					self.observations[i].circle = pupil_pair[1]
+					self.observations[i].circle = self.observations[i].projected_circles[1]
 		else:
 			#no inliers, so no eye
 			self.eye = Sphere.Sphere()

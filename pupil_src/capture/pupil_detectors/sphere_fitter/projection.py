@@ -101,7 +101,7 @@ def project_circle(circle,focal_length):
 	H = 2*(c2r2*n[0]*n[1] - cn*(n[0]*c[1] + n[1]*c[0]))
 
 	conic = geometry.Conic()
-	conic.init_by_coefficients(ABC[0],H,ABC[1],G*focal_length,F*focal_length,ABC[2]*np.square(focal_length))
+	conic.init_by_coefficients(ABC[0], H, ABC[1], G*focal_length, F*focal_length, ABC[2]*np.square(focal_length))
 	return conic
 
 def project_circle_to_ellipse(circle,intrinsics,extrinsics = None):
@@ -126,7 +126,7 @@ def project_circle_to_ellipse(circle,intrinsics,extrinsics = None):
 	conic = geometry.Conic()
 	conic.init_by_coefficients(ABC[0],H,ABC[1],G*focal_length,F*focal_length,ABC[2]*np.square(focal_length))
 	ellipse = geometry.Ellipse(conic = conic)
-	ellipse.center = np.array([ellipse.center[0] - intrinsics[0,2], ellipse.center[1] - intrinsics[1,2]]) #shift ellipse center
+	ellipse.center = np.array([ellipse.center[0] + intrinsics[0,2], ellipse.center[1] + intrinsics[1,2]]) #shift ellipse center
 	return ellipse
 
 def project_sphere(sphere,focal_length):
@@ -158,7 +158,6 @@ def project_point_camera_intrinsics(point = None,intrinsics = None,extrinsics = 
 	projected_pt = intrinsics * extrinsics * point
 	projected_pt = (projected_pt/projected_pt[-1])[:-1] #convert back to cartesian
 	projected_pt = projected_pt.reshape(2)
-	# print projected_pt[0,0]
 	return np.array([projected_pt[0,0],projected_pt[0,1]])
 
 def unproject(ellipse,circle_radius,focal_length):
@@ -211,15 +210,12 @@ def unproject(ellipse,circle_radius,focal_length):
 	m = 0.0
 	l = np.sqrt((lamb[0] - lamb[1])/(lamb[0]-lamb[2]))
 
-	# print "n: " + str(n) + ", m: " + str(m) + ", l:" + str(l)
-
-	#Safaee-Rad 1992 Eq 8
-
 	#Safaee-Rad 1992 Eq 12
 	t1 = (b - lamb)*g - f*h
 	t2 = (a - lamb)*f - g*h
 	t3 = -(a - lamb)*(t1/t2)/g - h/g
 
+	#Safaee-Rad 1992 Eq 8
 	mi = 1 / np.sqrt(1 + np.square(t1 / t2) + np.square(t3))
 	li = (t1 / t2) * mi
 	ni = t3 * mi
@@ -243,17 +239,12 @@ def unproject(ellipse,circle_radius,focal_length):
 	#Calculate t2 a translation transformation from the canonical
 	#conic frame to the image space in the canonical conic frame
 	#Safaee-Rad 1992 eq (14)
-
 	temp = -(u*li + v*mi + w*ni) / lamb
 	T2 = [[temp[0]],[temp[1]],[temp[2]]]
+	solutions = [] #two solutions for the circles that we will return
 
-	solutions = geometry.Circle3D()
-	ls = [l, -l]
-
-	solutions = [0,0] #two solutions for the circles that we will return
-
-	for i in (0,1):
-		l = ls[i]
+	for i in (1,-1):
+		l *= i
 
 		gaze = T1 * np.matrix([[l],[m],[n]])
 
@@ -268,9 +259,9 @@ def unproject(ellipse,circle_radius,focal_length):
 				[1,0,0],
 				[0,0,1]])
 		else:
-			T3 = np.matrix([[0,-n*np.sign(l),l], 
-				[np.sign(l),0,0],
-				[0,int(abs(l)),n]]) #round down
+			T3 = np.matrix([[0.,-n*np.sign(l),l], 
+				[np.sign(l),0.,0.],
+				[0.,abs(l),n]]) #changed from round down to abs()
 
 		#calculate circle center 
 		#Safaee-Rad 1992 eq (38), using T3 as defined in (36)
@@ -287,7 +278,7 @@ def unproject(ellipse,circle_radius,focal_length):
 
 		# Safaee-Rad 1992 eq 41
 		center_in_Xprime = np.zeros((3,1))
-		center_in_Xprime[2] = A*circle_radius/ np.sqrt(np.square(B) + np.square(C) - A*D)
+		center_in_Xprime[2] = A*circle_radius/ np.sqrt(B**2 + C**2 - A*D)
 		center_in_Xprime[0] = -B / A * center_in_Xprime[2]
 		center_in_Xprime[1] = -C / A * center_in_Xprime[2]
 
@@ -295,7 +286,6 @@ def unproject(ellipse,circle_radius,focal_length):
 		T0 = [[0],[0],[focal_length]]
 
 		# Safaee-Rad 1992 eq 42 using eq 35
-		#center = T0*T1*T2*
 		center = T0+T1*(T2+T3*center_in_Xprime)
 
 		if (center[2] < 0):
@@ -312,7 +302,7 @@ def unproject(ellipse,circle_radius,focal_length):
 		center = np.reshape(center,3)
 		center = np.array([center[0,0],center[0,1],center[0,2]]) #making it 3 instead of 3x1
 
-		solutions[i] = geometry.Circle3D(center,gaze,circle_radius)
+		solutions.append(geometry.Circle3D(center,gaze,circle_radius))
 
 	return solutions
 
@@ -335,6 +325,14 @@ if __name__ == '__main__':
 	k = np.matrix('1000 0 10; 0 1000 10; 0 0 1')
 
 	#testing uproject
+	ellipse = geometry.Ellipse((-15.,20.),50,1,0)
+	circ = unproject(ellipse,1,200)
+	print circ[0]
+	print circ[1]
+	conic = geometry.Ellipse(conic = project_circle(circ[0],200))
+	print conic
+	conic = geometry.Ellipse(conic = project_circle(circ[1],200))
+	print conic
 	# ellipse = geometry.Ellipse((92.049,33.9655), 66.3554, 52.3161, 0.752369*scipy.pi)
 	# print ellipse
 	# huding = unproject(ellipse,1,1000) #879.193
@@ -367,10 +365,10 @@ if __name__ == '__main__':
 	# print project_circle_to_ellipse(circle,k)
 
 	#testing project_point
-	point = np.array([[0.493976],[-0.376274],[4.35446]])
-	print point
-	print project_point_camera_intrinsics(point, k, None)
-	print project_point(point,1000)
+	# point = np.array([[0.493976],[-0.376274],[4.35446]])
+	# print point
+	# print project_point_camera_intrinsics(point, k, None)
+	# print project_point(point,1000)
 
 	#testing project_sphere
 	# sphere = geometry.Sphere(center=[-12.3454,5.22129,86.7681],radius=12)
