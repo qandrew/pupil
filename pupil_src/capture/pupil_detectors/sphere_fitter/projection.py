@@ -6,7 +6,7 @@
 	There are two ways to run our four functions in this file:
 	you can either feed the camera intrinsic or supply a simple focal length.
 	The focal_length method was used by Lech Swirsky, but it is simpler 
-	and does not match our coordinate system. Thus, we use the camera intrinsic
+	and does not match our coordinate system. Thus, we use the camera bintrinsic
 
 	project circle: projects a 3D circle to a conic/ellipse in 2D frame plane
 	project sphere: projects a 3D sphere to an ellipse in 2D frame plane
@@ -160,7 +160,16 @@ def project_point_camera_intrinsics(point = None,intrinsics = None,extrinsics = 
 	projected_pt = projected_pt.reshape(2)
 	return np.array([projected_pt[0,0],projected_pt[0,1]])
 
+def unproject_point_intrinsics(point,z,intrinsics):
+	return [(point[0]-intrinsics[0,2]) * z / intrinsics[0,0],
+			(point[1]-intrinsics[1,2]) * z / intrinsics[0,0],
+			z]
+
+
 def unproject(ellipse,circle_radius,focal_length):
+
+	""" TO DO : CASE OF SEEING CIRCLE, DO TRIVIAL CALCULATION (currently wrong result) """
+
 	circle = geometry.Circle3D()
 	Matrix3 = np.zeros((3,3))
 	RowArray3 = np.zeros((1,3))
@@ -316,16 +325,18 @@ def unproject_camera_intrinsics(ellipse,circle_radius,intrinsics, extrinsics = N
 		#set extrinsics matrix as identity matrix appended with 0 [I|0]
 		extrinsics = np.matrix('1 0 0 0 ; 0 1 0 0 ; 0 0 1 0')
 	focal_length = intrinsics[0,0]
-	ellipse.center = np.array([ellipse.center[0] - intrinsics[0,2], ellipse.center[1] - intrinsics[1,2]])
-
-	return unproject(ellipse,circle_radius,focal_length)
+	offset_ellipse = geometry.Ellipse(np.array([ellipse.center[0] - intrinsics[0,2], ellipse.center[1] - intrinsics[1,2]]),
+		ellipse.major_radius,ellipse.minor_radius,ellipse.angle)
+	return unproject(offset_ellipse,circle_radius,focal_length)
 
 if __name__ == '__main__':
 
 	k = np.matrix('1000 0 10; 0 1000 10; 0 0 1')
 
+	print k[0,2]
+	print unproject_point_intrinsics((10,10),2000,k)
 	#testing uproject
-	ellipse = geometry.Ellipse((-15.,20.),50,1,0)
+	ellipse = geometry.Ellipse((-15.,20.),1.00001,1,0)
 	circ = unproject(ellipse,1,200)
 	print circ[0]
 	print circ[1]

@@ -363,19 +363,18 @@ def eye(g_pool,cap_src,cap_size,rx_from_world,eye_id=0):
                 # print "huding"
                 # print result['center']
                 # print pts.shape
-                cygl_draw_polyline(pts,1,cygl_rgba(1.,0,0,.5))
+                # cygl_draw_polyline(pts,1,cygl_rgba(1.,0,0,.5))
             cygl_draw_points([result['center']],size=20,color=cygl_rgba(1.,0.,0.,.5),sharpness=1.)
-            draw_points_norm(((0,0),),size=20,color=cygl_rgba(1.,0.,0.,.5),sharpness=1.)
 
         #eye sphere fitter adding
         if result['confidence'] > 0.8 and result['minor']/result['major'] < 0.9:
             eye_model.add_pupil_labs_observation(result)
-            visual.ellipses.append(eye_model.observations[-1].ellipse.scale(eye_model.scale))
-            # print eye_model.scale
+            print eye_model.observations[-1].ellipse
+            visual.ellipses.append(eye_model.observations[-1].ellipse)
 
             #draw the circle back as an ellipse
             newellipse = eye_model.get_projected_circle( eye_model.observations[-1].projected_circles[0] )
-            print newellipse
+            # print newellipse
             pts = cv2.ellipse2Poly( (int(newellipse.center[0]), int(newellipse.center[1])), 
                 (int(newellipse.major_radius), int(newellipse.minor_radius)), 
                 int(newellipse.angle*180/scipy.pi), 0,360,15)
@@ -385,22 +384,12 @@ def eye(g_pool,cap_src,cap_size,rx_from_world,eye_id=0):
             pts = cv2.ellipse2Poly( (int(newellipse.center[0]), int(newellipse.center[1])), 
                 (int(newellipse.major_radius), int(newellipse.minor_radius)), 
                 int(newellipse.angle*180/scipy.pi), 0,360,15)
-            cygl_draw_polyline(pts,2,cygl_rgba(0,1,0,.5))
+            cygl_draw_polyline(pts,2,cygl_rgba(1,1,0,.5))
 
         if len(eye_model.observations) > 1:
             eye_model.unproject_observations()
             eye_model.initialize_model()
-
-            # print eye_model.observations[-1].projected_circles[0]
-            # print eye_model.observations[-1].circle #comparing how the circles have changed
-            # print eye_model.projected_eye.center
-            cygl_draw_points([eye_model.projected_eye.center],20,cygl_rgba(1,1,0,.5)) #draw eye center
-            # pts = cv2.ellipse2Poly( (int(eye_model.projected_eye.center[0]),
-            #     int(eye_model.projected_eye.center[1])),
-            #     (int(eye_model.projected_eye.major_radius/2),
-            #     int(eye_model.projected_eye.minor_radius/2)),
-            #     int(eye_model.projected_eye.angle),0,360,15)
-            # cygl_draw_polyline(pts,5,cygl_rgba(0,1.,0,.5)) #draw pupil sphere; currently incorrect.
+            cygl_draw_points([projection.project_point_camera_intrinsics(eye_model.eye.center,eye_model.intrinsics)],60,cygl_rgba(1,1,0,.5)) #draw eye center
             visual.sphere = eye_model.eye
 
         #draw all eye normal lines
@@ -424,7 +413,7 @@ def eye(g_pool,cap_src,cap_size,rx_from_world,eye_id=0):
             u_r.draw(g_pool.gui.scale)
 
         # show the visualizer
-        visual.update_window()
+        visual.update_window(g_pool,eye_model)
         glfwMakeContextCurrent(main_window)
 
         #update screen

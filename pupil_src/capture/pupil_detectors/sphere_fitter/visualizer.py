@@ -31,9 +31,35 @@ def convert_fov(fov,width):
 	focal_length = (width/2)/np.tan(fov/2)
 	return focal_length
 
+def get_perpendicular_vector(v):
+    """ Finds an arbitrary perpendicular vector to *v*."""
+    # http://codereview.stackexchange.com/questions/43928/algorithm-to-get-an-arbitrary-perpendicular-vector
+    # for two vectors (x, y, z) and (a, b, c) to be perpendicular,
+    # the following equation has to be fulfilled
+    #     0 = ax + by + cz
+
+    # x = y = z = 0 is not an acceptable solution
+    if v[0] == v[1] == v[2] == 0:
+        logger.error('zero-vector')
+
+    # If one dimension is zero, this can be solved by setting that to
+    # non-zero and the others to zero. Example: (4, 2, 0) lies in the
+    # x-y-Plane, so (0, 0, 1) is orthogonal to the plane.
+    if v[0] == 0:
+        return np.array((1, 0, 0))
+    if v[1] == 0:
+        return np.array((0, 1, 0))
+    if v[2] == 0:
+        return np.array((0, 0, 1))
+
+    # arbitrarily set a = b = 1
+    # then the equation simplifies to
+    #     c = -(x + y)/z
+    return np.array([1, 1, -1.0 * (v[0] + v[1]) / v[2]])
+
 class Visualizer():
-	def __init__(self,name = "unnamed", run_independently = False, width = 1280, height = 720, focal_length = 554.25625, intrinsics = None):
-		self.sphere = geometry.Sphere([11,14,46],12) #the eyeball, initialized as something random
+	def __init__(self,name = "unnamed", focal_length = 554.25625, intrinsics = None, run_independently = False):
+		self.sphere = geometry.Sphere() #the eyeball, initialized as something random
 		self.ellipses = [] #collection of ellipses 
 		self.circles = [] #collection of all 3D circles on the sphere
 		self.video_frame = (np.linspace(0,1,num=(400*400*4))*255).astype(np.uint8).reshape((400,400,4)) #the randomized image, should be video frame
@@ -47,19 +73,81 @@ class Visualizer():
 				logger.warning('no camera intrinsic input, set to focal length')
 			else:
 				logger.warning('no camera intrinsic input, set to default identity matrix')
+		# transformation matrices
 		self.intrinsics = intrinsics #camera intrinsics of our webcam.
+		self.scale = 1
 
 		self.name = name
 		self._window = None
-		self.width = width
-		self.height = height
 		self.input = None
 		self.trackball = None
 		self.run_independently = run_independently
 
 		self.window_should_close = False
 
-		self.test_ellipse = geometry.Ellipse((0,3),5,3,0)
+	############## MATRIX FUNCTIONS ##############################
+
+	def get_pixel_space_matrix(self):
+		# returns a homoegenous matrix
+		temp = self.get_anthropomorphic_matrix()
+		temp[3,3] *= self.scale
+		return temp
+
+	def get_adjusted_pixel_space_matrix(self,scale):
+		# returns a homoegenous matrix
+		temp = self.get_pixel_space_matrix()
+		temp[3,3] *= scale
+		return temp
+
+	def get_anthropomorphic_matrix(self):
+		temp =  np.identity(4)
+		temp[2,2] *=-1
+		temp[1,1] *=-1
+		return temp
+
+	def get_image_space_matrix(self,scale=1.):
+		temp = self.get_adjusted_pixel_space_matrix(scale)
+		temp[0,3] = -self.intrinsics[0,2] #cx
+		temp[1,3] = self.intrinsics[1,2] #cy
+		temp[2,3] = -self.intrinsics[0,0] #focal length
+		return temp.T
+
+	def get_pupil_transformation_matrix(self,circle):
+		"""  
+			OpenGL matrix convention for typical GL software
+			with positive Y=up and positive Z=rearward direction
+			RT = right
+			UP = up
+			BK = back
+			POS = position/translation
+			US = uniform scale
+			 
+			float transform[16];
+			 
+			[0] [4] [8 ] [12]
+			[1] [5] [9 ] [13]
+			[2] [6] [10] [14]
+			[3] [7] [11] [15]
+			 
+			[RT.x] [UP.x] [BK.x] [POS.x]
+			[RT.y] [UP.y] [BK.y] [POS.y]
+			[RT.z] [UP.z] [BK.z] [POS.Z]
+			[    ] [    ] [    ] [US   ]
+		"""		
+		temp = self.get_anthropomorphic_matrix()
+		right = temp[:3,0]
+		up = temp[:3,1]
+		back = temp[:3,2]
+		translation = temp[:3,3]
+		back[:] = np.array(circle.normal)
+		back[-1] *=-1
+		back[-2] *=-1
+		back[:] /= np.linalg.norm(back)
+		right[:] = get_perpendicular_vector(back)/np.linalg.norm(get_perpendicular_vector(back))
+		up[:] = np.cross(right,back)/np.linalg.norm(np.cross(right,back))
+		translation[:] = np.array((circle.center[0],-circle.center[1],-circle.center[2]))
+
+		return temp.T
 
 	############## DRAWING FUNCTIONS ##############################
 
@@ -76,8 +164,8 @@ class Visualizer():
 		# average focal length
 		#f = (K[0, 0] + K[1, 1]) / 2
 		# compute distances for setting up the camera pyramid
-		W = 0.5*self.width
-		H = 0.5*self.height
+		W = self.intrinsics[0,2]
+		H = self.intrinsics[1,2]
 		Z = self.intrinsics[0,0]
 		# scale the pyramid
 		W *= scale
@@ -134,37 +222,35 @@ class Visualizer():
 	def draw_all_ellipses(self):
 		# draws all ellipses in self.ellipses.
 		glPushMatrix()
-		for ellipse in self.ellipses:
+		for ellipse in self.ellipses[-10:]:
 			glColor3f(0.0, 1.0, 0.0)  #set color to green
-			glTranslate(ellipse.center[0], ellipse.center[1], 0) 
-			glBegin(GL_LINE_LOOP) #draw ellipse
-			for i in xrange(45):
-				rad = i*16*scipy.pi/360.
-				glVertex2f(np.cos(rad)*ellipse.major_radius,np.sin(rad)*ellipse.minor_radius)	
-			glEnd()
-			glTranslate(-ellipse.center[0], -ellipse.center[1], 0) #untranslate
-
-			d = np.array([self.sphere.center[0]-ellipse.center[0],self.sphere.center[1]-ellipse.center[1],self.sphere.center[2]]) #direction
-			d = d/np.linalg.norm(d)			
-			el_center = np.array([ellipse.center[0],ellipse.center[1],0])	
-			glutils.draw_polyline3d([self.sphere.center,el_center-d],color=RGBA(0.4,0.5,0.3,1)) #draw line
+			# glTranslate(ellipse.center[0], ellipse.center[1], 0) 
+			pts = cv2.ellipse2Poly( (int(ellipse.center[0]),int(ellipse.center[1])),
+                                        (int(ellipse.major_radius),int(ellipse.minor_radius)),
+                                        int(ellipse.angle*180/scipy.pi),0,360,15)
+			draw_polyline(pts,2,color = RGBA(0,1,1,.5))
+			# glBegin(GL_LINE_LOOP) #draw ellipse
+			# for i in xrange(45):
+			# 	rad = (i*16*scipy.pi/360. + ellipse.angle)
+			# 	glVertex2f(np.cos(rad)*ellipse.major_radius,np.sin(rad)*ellipse.minor_radius)	
+			# glEnd()
+			# glTranslate(-ellipse.center[0], -ellipse.center[1], 0) #untranslate
+			# d = np.array([self.sphere.center[0]-ellipse.center[0],self.sphere.center[1]-ellipse.center[1],self.sphere.center[2]]) #direction
+			# d = d/np.linalg.norm(d)			
+			# el_center = np.array([ellipse.center[0],ellipse.center[1],0])	
+			# glutils.draw_polyline3d([self.sphere.center,el_center-d],color=RGBA(0.4,0.5,0.3,1)) #draw line
 		glPopMatrix()
 
-	def draw_all_circles(self):
-		""" CURRENTLY INCORRECT """ 
+	def draw_circle(self,circle):
 		glPushMatrix()
+		glLoadMatrixf(self.get_pupil_transformation_matrix(circle))
+		draw_points(((0,0),),color=RGBA(1.1,0.2,.8))
 		glColor3f(0.0, 1.0, 0.0)  #set color to green
-		for circle in self.circles:
-			norm = circle.radius
-			glTranslate(circle.center[0], circle.center[1], circle.center[2])  #translate
-			glRotate(90,0,0,0)
-			glBegin(GL_LINE_LOOP) #draw circle
-			for i in xrange(45):
-				rad = i*16*scipy.pi/360.
-				glVertex2f(np.cos(rad)*circle.radius,np.sin(rad)*circle.radius)	
-			glEnd()
-			glTranslate(-circle.center[0], -circle.center[1], -circle.center[2]) #untranslate
-
+		glBegin(GL_LINE_LOOP) #draw circle
+		for i in xrange(45):
+			rad = i*16*scipy.pi/360.
+			glVertex2f(np.cos(rad)*circle.radius,np.sin(rad)*circle.radius)	
+		glEnd()
 		glPopMatrix()
 
 	def draw_ellipse(self,ellipse):
@@ -180,7 +266,8 @@ class Visualizer():
 		glPopMatrix()
 
 	def draw_video_screen(self):
-		#function to draw self.video_frame
+		# Function to draw self.video_frame.
+		# Need to scale
 		glPushMatrix()
 		tex_id = create_named_texture(self.video_frame.shape)
 		update_named_texture(tex_id,self.video_frame) #since image doesn't change, do not need to put in while loop
@@ -228,7 +315,7 @@ class Visualizer():
 			if self.run_independently:
 				glfwInit()
 			window = glfwGetCurrentContext()					
-			self._window = glfwCreateWindow(self.width, self.height, self.name, None, window)
+			self._window = glfwCreateWindow(640, 480, self.name, None, window)
 			glfwMakeContextCurrent(self._window)
 
 			if not self._window:
@@ -255,7 +342,7 @@ class Visualizer():
 			# self.gui = ui.UI()
 			self.on_resize(self._window,*glfwGetFramebufferSize(self._window))
 
-	def update_window(self):
+	def update_window(self, g_pool,model):
 		if self.window_should_close:
 			self.close_window()
 		if self._window != None:
@@ -263,16 +350,26 @@ class Visualizer():
 			self.clear_gl_screen()
 
 			self.trackball.push()
+			# print glGetFloatv(GL_MODELVIEW_MATRIX).T
 
 			#THINGS I NEED TO DRAW
-			self.draw_sphere() #draw the eyeball
-			# self.draw_all_ellipses()
-			self.draw_all_circles()
-			self.draw_rect()
 
-			# self.draw_frustum(scale = .01)
+			# 1. in anthromorphic space, draw pupil sphere and circles on it
+			glLoadMatrixf(self.get_anthropomorphic_matrix())
+			self.draw_sphere() #draw the eyeball
+			for pupil in model.observations[-10:]:
+				self.draw_circle(pupil.circle) 
 			self.draw_coordinate_system(4)
 
+			# 1a. draw frustum in pixel scale, but retaining origin
+			glLoadMatrixf(self.get_adjusted_pixel_space_matrix(30))
+			self.draw_frustum()
+
+			# 2. in pixel space, draw ellipses, and video frame
+			glLoadMatrixf(self.get_image_space_matrix(30))
+			draw_named_texture(g_pool.image_tex,quad=((0,480),(640,480),(640,0),(0,0)),alpha=0.5)
+			self.draw_all_ellipses()
+			
 			self.trackball.pop()
 			glfwSwapBuffers(self._window)
 			glfwPollEvents()
@@ -334,20 +431,36 @@ class Visualizer():
 		self.window_should_close = True
 
 if __name__ == '__main__':
-	huding = Visualizer("huding", run_independently = True)
+	intrinsics = np.matrix('879.193 0 320; 0 879.193 240; 0 0 1')
+	huding = Visualizer("huding", run_independently = True, intrinsics = intrinsics)
 
-	huding.ellipses.append(geometry.Ellipse((0,4),5,3,0))
-	huding.ellipses.append(geometry.Ellipse((2,4),2,3,0))
-	huding.ellipses.append(geometry.Ellipse((4,4),2,1,0))
+	# huding.ellipses.append(geometry.Ellipse((389.67633057,340.16584778), 44.97, 34, 2*scipy.pi/3))
+	# huding.ellipses.append(geometry.Ellipse((370.1632843,225.21165466), 42.16, 9.7, 1.7))
+	# # huding.ellipses.append(geometry.Ellipse((390.1632843,225.21165466), 42.16, 29.7, 3.7))
+	# # huding.ellipses.append(geometry.Ellipse([ 504.64957428 , 298.43984222],42.28, 14.13, 4.38*scipy.pi))
+	# # huding.ellipses.append(geometry.Ellipse((4.86,-48.18)   ))
 
-	huding.circles.append(geometry.Circle3D((1,1,2),(1,0,0),3)) #pointing in x dir
-	huding.circles.append(geometry.Circle3D((0,0,0),(0,1,0),1)) #pointing in y dir
+	# # huding.ellipses.append(geometry.Ellipse((232,58),45,26,4.62))
 
-	huding.open_window()
-	a = 0
-	while huding.update_window():
-		a += 1
-	huding.close_window()
-	print a
+	# huding.circles.append(geometry.Circle3D((1,1,2),(1,0,0),3)) #pointing in x dir
+	# huding.circles.append(geometry.Circle3D((0,0,0),(0,1,0),1)) #pointing in y dir
+	# huding.sphere.center = [11.63136843 , 16.53159359 , 40.12095085]
+	# # huding.sphere.center = [5,5,10]
+	# huding.sphere.radius = 5.
+	# huding.open_window()
+	# a = 0
+	# while huding.update_window():
+	# 	a += 1
+	# huding.close_window()
+	# print a
 
-	# print convert_fov(60,640)
+	# # print convert_fov(60,640)
+	b = np.array((1,1,1))
+	a = get_perpendicular_vector(b)
+	c = np.cross(a,b)
+	print np.dot(a,b)
+	print np.dot(a,c)
+
+
+	circ = geometry.Circle3D((1,1,2),(0,0,1),3)
+	print huding.get_pupil_transformation_matrix(circ).T

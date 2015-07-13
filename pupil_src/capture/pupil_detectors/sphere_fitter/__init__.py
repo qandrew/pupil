@@ -116,8 +116,10 @@ class Sphere_Fitter():
 		# print "center " + str(self.eye.center)
 		# print "radius " + str(self.eye.radius)
 		radial = auxiliary_functions.sph2cart(1, params.theta, params.psi)
-		# print radial
-		return geometry.Circle3D(self.eye.center + self.eye.radius*radial,radial, params.radius)
+		cent = self.eye.center + self.eye.radius*radial
+		cent = np.asarray(cent).reshape(3)
+		# print cent
+		return geometry.Circle3D(cent,radial, params.radius)
 
 	def initialize_model(self):
 		if self.eye.center[0] == 0 and self.eye.center[1] == 0 and self.eye.center[2] == 0 and self.eye.radius == 0:
@@ -150,7 +152,7 @@ class Sphere_Fitter():
 		#scale eye to anthropomorphic average radius of 12mm
 		self.scale = 12.0 / self.eye.radius
 		self.eye.radius = 12.0
-		self.eye.center = [self.eye.center[0]*self.scale,self.eye.center[1]*self.scale,self.eye.center[2]*self.scale]
+		self.eye.center = np.array(self.eye.center)*self.scale
 
 		for pupil in self.observations:
 			pupil.params.radius = pupil.params.radius*self.scale
@@ -258,8 +260,7 @@ class Sphere_Fitter():
 		valid_eye = True
 
 		if (valid_eye):
-			self.eye.center = [eye_center_proj[0] * eye_z / self.intrinsics[0,0],
-				eye_center_proj[1] * eye_z / self.intrinsics[0,0], eye_z] #force it to be a 3x1 array
+			self.eye.center = projection.unproject_point_intrinsics(eye_center_proj,eye_z,self.intrinsics) #force it to be a 3x1 array
 			self.eye.center = np.reshape(np.array(self.eye.center),(3,))
 			self.eye.radius = 1
 			self.projected_eye = projection.project_sphere_camera_intrinsics(self.eye, self.intrinsics)
