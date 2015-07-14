@@ -3,15 +3,13 @@
 	I want to port Projection.h into this python script here
 	June 25 2015
 
-	There are two ways to run our four functions in this file:
-	you can either feed the camera intrinsic or supply a simple focal length.
-	The focal_length method was used by Lech Swirsky, but it is simpler 
-	and does not match our coordinate system. Thus, we use the camera bintrinsic
+	We use the camera intrinsic to determine the focal length for projection/unprojection
 
 	project circle: projects a 3D circle to a conic/ellipse in 2D frame plane
 	project sphere: projects a 3D sphere to an ellipse in 2D frame plane
 	project point: projects a 3D point to a point in 2D frame plane
 	unproject: given ellipse, return two 3D circles of its unprojection
+	unproject point: given point and z coordinate, return unprojected point
 
 """
 
@@ -104,8 +102,7 @@ def project_circle_to_ellipse(circle,intrinsics,extrinsics = None):
 	G = 2*(c2r2*n[2]*n[0] - cn*(n[2]*c[0] + n[0]*c[2]))
 	H = 2*(c2r2*n[0]*n[1] - cn*(n[0]*c[1] + n[1]*c[0]))
 
-	conic = geometry.Conic()
-	conic.init_by_coefficients(ABC[0],H,ABC[1],G*focal_length,F*focal_length,ABC[2]*np.square(focal_length))
+	conic = geometry.Conic(a = ABC[0],b=H,c=ABC[1],d=G*focal_length,e=F*focal_length,f=ABC[2]*np.square(focal_length))
 	ellipse = geometry.Ellipse(conic = conic)
 	ellipse.center = np.array([ellipse.center[0] + intrinsics[0,2], -ellipse.center[1] + intrinsics[1,2]]) #shift ellipse center
 	ellipse.angle = -ellipse.angle%np.pi
@@ -147,7 +144,7 @@ def unproject(ellipse,circle_radius,focal_length):
 	RowArray3 = np.zeros((1,3))
 	Translation3 = np.zeros((1,3)) #see T2 for actual implementation
 
-	conic = geometry.Conic(ellipse)
+	conic = geometry.Conic(ellipse = ellipse)
 	cam_center_in_ellipse = np.array([[0],[0],[-focal_length]])
 	pupil_cone = geometry.Conicoid(conic = conic, vertex = cam_center_in_ellipse)
 	#pupil_cone.initialize_conic(conic,cam_center_in_ellipse) #this step is fine
@@ -308,7 +305,7 @@ if __name__ == '__main__':
 	# print k[0,2]
 	p3 = unproject_point_intrinsics((0.0,20),100,k)
 	p2 = project_point_camera_intrinsics(p3,k)
-	print p3,p2
+	# print p3,p2
 	#testing uproject
 	ellipse = geometry.Ellipse((0.,0.),2.0502,1.0001,2.01)
 	circ = unproject_camera_intrinsics(ellipse,1,k)

@@ -13,7 +13,6 @@ import numpy as np
 import cv2
 import scipy
 
-import auxiliary_functions
 import geometry
 import projection
 import intersect
@@ -41,6 +40,11 @@ def convert_fov(fov,width):
 	fov = fov*scipy.pi/180
 	focal_length = (width/2)/np.tan(fov/2)
 	return focal_length
+
+def sph2cart(r,theta,psi):
+	toreturn = np.matrix([np.sin(theta)*np.cos(psi), np.cos(theta), np.sin(theta)*np.sin(psi)]) 
+	#np is column major, so initializing this should give a 3x1 matrix (or vector)
+	return r*toreturn
 
 class PupilParams: #was a structure in C
 	def __init__(self, theta = 0, psi = 0, radius = 0):
@@ -115,7 +119,7 @@ class Sphere_Fitter():
 			return None
 		# print "center " + str(self.eye.center)
 		# print "radius " + str(self.eye.radius)
-		radial = auxiliary_functions.sph2cart(1, params.theta, params.psi)
+		radial = sph2cart(1, params.theta, params.psi)
 		cent = self.eye.center + self.eye.radius*radial
 		cent = np.asarray(cent).reshape(3)
 		# print cent
