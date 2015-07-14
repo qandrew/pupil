@@ -186,7 +186,7 @@ def eye(g_pool,cap_src,cap_size,rx_from_world,eye_id=0):
     writer = None
 
     pupil_detector = Canny_Detector(g_pool)
-    intrinsics = np.matrix('879.193 0 320; 0 879.193 240; 0 0 1')
+    intrinsics = np.matrix('879.193 0 320; 0 -879.193 240; 0 0 1')
     eye_model = sphere_fitter.Sphere_Fitter(intrinsics = intrinsics)
 
     # UI callback functions
@@ -367,7 +367,7 @@ def eye(g_pool,cap_src,cap_size,rx_from_world,eye_id=0):
             cygl_draw_points([result['center']],size=20,color=cygl_rgba(1.,0.,0.,.5),sharpness=1.)
 
         #eye sphere fitter adding
-        if result['confidence'] > 0.8 and result['minor']/result['major'] < 0.9:
+        if result['confidence'] > 0.8:
             eye_model.add_pupil_labs_observation(result)
             print eye_model.observations[-1].ellipse
             visual.ellipses.append(eye_model.observations[-1].ellipse)

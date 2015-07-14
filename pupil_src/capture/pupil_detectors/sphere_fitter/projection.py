@@ -26,10 +26,8 @@ import logging
 logging.info('Starting logger for...') 
 logger = logging.getLogger(__name__)
 
-def project_circle(circle,focal_length):
-	c = circle.center
-	n = circle.normal
-	r = circle.radius
+def project_circle_to_ellipse(circle,intrinsics,extrinsics = None):
+	#takes in circle and outputs projected ellipse. It is easier to translate ellipse than conic
 
 	"""INSTRUCTIONS
 		Construct cone with circle as base and vertex v = (0,0,0).
@@ -92,30 +90,13 @@ def project_circle(circle,focal_length):
 				[xyz] : 0
 					1 : 0
 	"""
-	
-	cn = np.dot(n,c)
-	c2r2 = np.dot(c,c) - np.square(r)
-	ABC = (np.square(cn) - 2.0*cn*c*n + c2r2*np.square(n))
-	F = 2*(c2r2*n[1]*n[2] - cn*(n[1]*c[2] + n[2]*c[1]))
-	G = 2*(c2r2*n[2]*n[0] - cn*(n[2]*c[0] + n[0]*c[2]))
-	H = 2*(c2r2*n[0]*n[1] - cn*(n[0]*c[1] + n[1]*c[0]))
-
-	conic = geometry.Conic()
-	conic.init_by_coefficients(ABC[0], H, ABC[1], G*focal_length, F*focal_length, ABC[2]*np.square(focal_length))
-	return conic
-
-def project_circle_to_ellipse(circle,intrinsics,extrinsics = None):
-	#takes in circle and outputs projected ellipse. It is easier to translate ellipse than conic
-	"""NEED TO TEST THIS FUNCTION"""
-
 	if circle == None or intrinsics == None:
 		logger.error("please supply circle and/or intrinsics matrix")
 		return
 	c = circle.center
 	n = circle.normal
 	r = circle.radius
-	focal_length = intrinsics[0,0]
-
+	focal_length = abs(intrinsics[1,1])
 	cn = np.dot(n,c)
 	c2r2 = np.dot(c,c) - np.square(r)
 	ABC = (np.square(cn) - 2.0*cn*c*n + c2r2*np.square(n))
@@ -126,23 +107,14 @@ def project_circle_to_ellipse(circle,intrinsics,extrinsics = None):
 	conic = geometry.Conic()
 	conic.init_by_coefficients(ABC[0],H,ABC[1],G*focal_length,F*focal_length,ABC[2]*np.square(focal_length))
 	ellipse = geometry.Ellipse(conic = conic)
-	ellipse.center = np.array([ellipse.center[0] + intrinsics[0,2], ellipse.center[1] + intrinsics[1,2]]) #shift ellipse center
+	ellipse.center = np.array([ellipse.center[0] + intrinsics[0,2], -ellipse.center[1] + intrinsics[1,2]]) #shift ellipse center
+	ellipse.angle = -ellipse.angle%np.pi
 	return ellipse
-
-def project_sphere(sphere,focal_length):
-	return geometry.Ellipse(
-		[focal_length * sphere.center[0] / sphere.center[2],focal_length * sphere.center[1] / sphere.center[2]], #ellipse center
-		focal_length * sphere.radius / sphere.center[2], # major
-		focal_length * sphere.radius / sphere.center[2], # minor
-		0 ) # angle
 
 def project_sphere_camera_intrinsics(sphere,intrinsics,extrinsics = None):
 	center = project_point_camera_intrinsics(sphere.center,intrinsics,extrinsics)
-	radius = sphere.radius/sphere.center[2] * intrinsics[0,0] #scale based on fx in camera intrinsic matrix
+	radius = abs(sphere.radius/sphere.center[2] * intrinsics[1,1]) #scale based on fx in camera intrinsic matrix
 	return geometry.Ellipse(center,radius,radius,0)
-
-def project_point(point,focal_length):
-	return np.array([focal_length*np.array(point)[0]/point[2],focal_length*np.array(point)[1]/point[2]])
 
 def project_point_camera_intrinsics(point = None,intrinsics = None,extrinsics = None):
 	#camera intrinsics matrix and extrinsics is rotation-translation matrix. 
@@ -162,7 +134,7 @@ def project_point_camera_intrinsics(point = None,intrinsics = None,extrinsics = 
 
 def unproject_point_intrinsics(point,z,intrinsics):
 	return [(point[0]-intrinsics[0,2]) * z / intrinsics[0,0],
-			(point[1]-intrinsics[1,2]) * z / intrinsics[0,0],
+			(point[1]-intrinsics[1,2]) * z / intrinsics[1,1],
 			z]
 
 
@@ -325,25 +297,30 @@ def unproject_camera_intrinsics(ellipse,circle_radius,intrinsics, extrinsics = N
 		#set extrinsics matrix as identity matrix appended with 0 [I|0]
 		extrinsics = np.matrix('1 0 0 0 ; 0 1 0 0 ; 0 0 1 0')
 	focal_length = intrinsics[0,0]
-	offset_ellipse = geometry.Ellipse(np.array([ellipse.center[0] - intrinsics[0,2], ellipse.center[1] - intrinsics[1,2]]),
-		ellipse.major_radius,ellipse.minor_radius,ellipse.angle)
+	offset_ellipse = geometry.Ellipse(np.array([ellipse.center[0] - intrinsics[0,2], -(ellipse.center[1] - intrinsics[1,2])]),
+		ellipse.major_radius,ellipse.minor_radius, np.sign(intrinsics[1,1])*ellipse.angle)
 	return unproject(offset_ellipse,circle_radius,focal_length)
 
 if __name__ == '__main__':
 
-	k = np.matrix('1000 0 10; 0 1000 10; 0 0 1')
+	k = np.matrix('100 0 10; 0 -100 10; 0 0 1')
 
-	print k[0,2]
-	print unproject_point_intrinsics((10,10),2000,k)
+	# print k[0,2]
+	p3 = unproject_point_intrinsics((0.0,20),100,k)
+	p2 = project_point_camera_intrinsics(p3,k)
+	print p3,p2
 	#testing uproject
-	ellipse = geometry.Ellipse((-15.,20.),1.00001,1,0)
-	circ = unproject(ellipse,1,200)
+	ellipse = geometry.Ellipse((0.,0.),2.0502,1.0001,2.01)
+	circ = unproject_camera_intrinsics(ellipse,1,k)
 	print circ[0]
 	print circ[1]
-	conic = geometry.Ellipse(conic = project_circle(circ[0],200))
-	print conic
-	conic = geometry.Ellipse(conic = project_circle(circ[1],200))
-	print conic
+	print project_circle_to_ellipse(circ[1],k)
+	print project_circle_to_ellipse(circ[0],k)
+
+	# conic = geometry.Ellipse(conic = project_circle(circ[0],200))
+	# print conic
+	# conic = geometry.Ellipse(conic = project_circle(circ[1],200))
+	# print conic
 	# ellipse = geometry.Ellipse((92.049,33.9655), 66.3554, 52.3161, 0.752369*scipy.pi)
 	# print ellipse
 	# huding = unproject(ellipse,1,1000) #879.193

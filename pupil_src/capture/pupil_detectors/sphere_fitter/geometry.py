@@ -210,6 +210,9 @@ class Ellipse:
 		elif pupil_ellipse:
 			self.initialize_by_pupil_ellipse(pupil_ellipse)
 
+		# enforce angle <pi
+		self.angle = self.angle%np.pi
+
 	def initialize_by_pupil_ellipse(self, pupil_ellipse):
 		x = pupil_ellipse['center'][0] #- 320 #- width/2 320
 		y = pupil_ellipse['center'][1] #- 240 #- height/2 240

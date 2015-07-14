@@ -18,8 +18,9 @@ from pyglui.cygl.utils import init
 from pyglui.cygl.utils import RGBA
 from pyglui.cygl.utils import *
 from pyglui.cygl import utils as glutils
-from pyglui.pyfontstash import fontstash as fs
 from trackball import Trackball
+from pyglui.pyfontstash import fontstash as fs
+from pyglui.ui import get_opensans_font_path
 
 import numpy as np
 import scipy
@@ -101,12 +102,12 @@ class Visualizer():
 
 	def get_anthropomorphic_matrix(self):
 		temp =  np.identity(4)
-		temp[2,2] *=-1
-		temp[1,1] *=-1
+		temp[2,2] *=-1 #consistent with our 3d coord system
 		return temp
 
 	def get_image_space_matrix(self,scale=1.):
 		temp = self.get_adjusted_pixel_space_matrix(scale)
+		temp[1,1] *=-1 #image origin is top left
 		temp[0,3] = -self.intrinsics[0,2] #cx
 		temp[1,3] = self.intrinsics[1,2] #cy
 		temp[2,3] = -self.intrinsics[0,0] #focal length
@@ -140,13 +141,48 @@ class Visualizer():
 		back = temp[:3,2]
 		translation = temp[:3,3]
 		back[:] = np.array(circle.normal)
-		back[-1] *=-1
-		back[-2] *=-1
+		back[-2] *=-1 #our z axis is inverted
+		back[-0] *=-1 #our z axis is inverted
 		back[:] /= np.linalg.norm(back)
 		right[:] = get_perpendicular_vector(back)/np.linalg.norm(get_perpendicular_vector(back))
 		up[:] = np.cross(right,back)/np.linalg.norm(np.cross(right,back))
-		translation[:] = np.array((circle.center[0],-circle.center[1],-circle.center[2]))
+		translation[:] = np.array((circle.center[0],circle.center[1],-circle.center[2]))
+		return temp.T
 
+	def get_rotated_sphere_matrix(self,circle,sphere):
+		"""  
+			OpenGL matrix convention for typical GL software
+			with positive Y=up and positive Z=rearward direction
+			RT = right
+			UP = up
+			BK = back
+			POS = position/translation
+			US = uniform scale
+			 
+			float transform[16];
+			 
+			[0] [4] [8 ] [12]
+			[1] [5] [9 ] [13]
+			[2] [6] [10] [14]
+			[3] [7] [11] [15]
+			 
+			[RT.x] [UP.x] [BK.x] [POS.x]
+			[RT.y] [UP.y] [BK.y] [POS.y]
+			[RT.z] [UP.z] [BK.z] [POS.Z]
+			[    ] [    ] [    ] [US   ]
+		"""		
+		temp = self.get_anthropomorphic_matrix()
+		right = temp[:3,0]
+		up = temp[:3,1]
+		back = temp[:3,2]
+		translation = temp[:3,3]
+		back[:] = np.array(circle.normal)
+		back[-2] *=-1 #our z axis is inverted
+		back[-0] *=-1 #our z axis is inverted
+		back[:] /= np.linalg.norm(back)
+		right[:] = get_perpendicular_vector(back)/np.linalg.norm(get_perpendicular_vector(back))
+		up[:] = np.cross(right,back)/np.linalg.norm(np.cross(right,back))
+		translation[:] = np.array((sphere.center[0],sphere.center[1],-sphere.center[2]))
 		return temp.T
 
 	############## DRAWING FUNCTIONS ##############################
@@ -211,12 +247,14 @@ class Visualizer():
 		glVertex3f( 0, 0, l )
 		glEnd( )
 
-	def draw_sphere(self):
+	def draw_sphere(self,circle):
 		# this function draws the location of the eye sphere
 		glPushMatrix()
-		glColor3f(0.0, 0.0, 1.0)  #set color to blue
-		glTranslate(self.sphere.center[0], self.sphere.center[1], self.sphere.center[2])
-		glutWireSphere(self.sphere.radius,20,20)
+		glColor4f(0.0, 1.0, 1.0,0.2)  #set color to blue
+		glLoadMatrixf(self.get_rotated_sphere_matrix(circle,self.sphere))
+		glutSolidSphere(self.sphere.radius,20,10)
+		glColor4f(0.0, 0.0, 1.0,0.8)  #set color to blue
+		glutWireSphere(self.sphere.radius,20,10)
 		glPopMatrix()
 
 	def draw_all_ellipses(self):
@@ -224,44 +262,21 @@ class Visualizer():
 		glPushMatrix()
 		for ellipse in self.ellipses[-10:]:
 			glColor3f(0.0, 1.0, 0.0)  #set color to green
-			# glTranslate(ellipse.center[0], ellipse.center[1], 0) 
 			pts = cv2.ellipse2Poly( (int(ellipse.center[0]),int(ellipse.center[1])),
                                         (int(ellipse.major_radius),int(ellipse.minor_radius)),
                                         int(ellipse.angle*180/scipy.pi),0,360,15)
 			draw_polyline(pts,2,color = RGBA(0,1,1,.5))
-			# glBegin(GL_LINE_LOOP) #draw ellipse
-			# for i in xrange(45):
-			# 	rad = (i*16*scipy.pi/360. + ellipse.angle)
-			# 	glVertex2f(np.cos(rad)*ellipse.major_radius,np.sin(rad)*ellipse.minor_radius)	
-			# glEnd()
-			# glTranslate(-ellipse.center[0], -ellipse.center[1], 0) #untranslate
-			# d = np.array([self.sphere.center[0]-ellipse.center[0],self.sphere.center[1]-ellipse.center[1],self.sphere.center[2]]) #direction
-			# d = d/np.linalg.norm(d)			
-			# el_center = np.array([ellipse.center[0],ellipse.center[1],0])	
-			# glutils.draw_polyline3d([self.sphere.center,el_center-d],color=RGBA(0.4,0.5,0.3,1)) #draw line
 		glPopMatrix()
 
 	def draw_circle(self,circle):
 		glPushMatrix()
 		glLoadMatrixf(self.get_pupil_transformation_matrix(circle))
 		draw_points(((0,0),),color=RGBA(1.1,0.2,.8))
-		glColor3f(0.0, 1.0, 0.0)  #set color to green
-		glBegin(GL_LINE_LOOP) #draw circle
+		glColor4f(0.0, 0.0, 0.0,0.5)  #set color to green
+		glBegin(GL_POLYGON) #draw circle
 		for i in xrange(45):
 			rad = i*16*scipy.pi/360.
 			glVertex2f(np.cos(rad)*circle.radius,np.sin(rad)*circle.radius)	
-		glEnd()
-		glPopMatrix()
-
-	def draw_ellipse(self,ellipse):
-		#draw a single ellipse
-		glPushMatrix()  
-		glColor3f(0.0, 1.0, 0.0)  #set color to green
-		glTranslate(ellipse.center[0], ellipse.center[1], 0)
-		glBegin(GL_LINE_LOOP)
-		for i in xrange(30): #originally 360, 2. Now 30, 24. Performance gains
-			rad = i*24*scipy.pi/360.
-			glVertex2f(np.cos(rad)*ellipse.major_radius,np.sin(rad)*ellipse.minor_radius)
 		glEnd()
 		glPopMatrix()
 
@@ -308,7 +323,7 @@ class Visualizer():
 
 	def open_window(self):
 		if not self._window:
-			self.input = {'down':False, 'mouse':(0,0)}
+			self.input = {'button':None, 'mouse':(0,0)}
 			self.trackball = Trackball()
 
 			# get glfw started
@@ -339,14 +354,26 @@ class Visualizer():
 			glutInit()
 			self.basic_gl_setup()
 
+			self.glfont = fs.Context()
+			self.glfont.add_font('opensans',get_opensans_font_path())
+			self.glfont.set_size(22)
+			self.glfont.set_color_float((0.2,0.5,0.9,1.0))
+
+
 			# self.gui = ui.UI()
 			self.on_resize(self._window,*glfwGetFramebufferSize(self._window))
 
-	def update_window(self, g_pool,model):
+	def update_window(self, g_pool = None,model = None):
 		if self.window_should_close:
 			self.close_window()
 		if self._window != None:
 			glfwMakeContextCurrent(self._window)
+
+			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
+			glClearDepth(1.0)
+			glDepthFunc(GL_LESS)
+			glEnable(GL_DEPTH_TEST)
+			glAlphaFunc(GL_GREATER, 0)
 			self.clear_gl_screen()
 
 			self.trackball.push()
@@ -356,10 +383,17 @@ class Visualizer():
 
 			# 1. in anthromorphic space, draw pupil sphere and circles on it
 			glLoadMatrixf(self.get_anthropomorphic_matrix())
-			self.draw_sphere() #draw the eyeball
-			for pupil in model.observations[-10:]:
-				self.draw_circle(pupil.circle) 
+
+			if model: #if we are feeding in spheres to draw
+				for pupil in model.observations[-10:]: #draw the last 10
+					self.draw_circle(pupil.circle) 
+
+			self.draw_sphere(pupil.circle) #draw the eyeball
+
 			self.draw_coordinate_system(4)
+			glTranslatef(*self.sphere.center)
+			glScalef(0.1,0.1,0.1)
+			self.glfont.draw_multi_line_text(0,0,'Eyeball location: \n %s'%self.sphere.center)
 
 			# 1a. draw frustum in pixel scale, but retaining origin
 			glLoadMatrixf(self.get_adjusted_pixel_space_matrix(30))
@@ -367,8 +401,22 @@ class Visualizer():
 
 			# 2. in pixel space, draw ellipses, and video frame
 			glLoadMatrixf(self.get_image_space_matrix(30))
-			draw_named_texture(g_pool.image_tex,quad=((0,480),(640,480),(640,0),(0,0)),alpha=0.5)
+			if g_pool: #if display eye camera frames
+				draw_named_texture(g_pool.image_tex,quad=((0,480),(640,480),(640,0),(0,0)),alpha=0.5)
 			self.draw_all_ellipses()
+
+			# 3. display text on screen
+			# glWindowPos2i(100, 100)
+			# glutPrint("SAMPLE TEXT")
+
+
+			# glFontBegin(font);
+			# glScalef(8.0, 8.0, 8.0);
+			# glTranslatef(30, 30, 0);
+			# glFontTextOut("Test", 5, 5, 0);
+			# glFontEnd();
+			# glFlush();
+
 			
 			self.trackball.pop()
 			glfwSwapBuffers(self._window)
@@ -406,10 +454,10 @@ class Visualizer():
 	def on_button(self,window,button, action, mods):
 		# self.gui.update_button(button,action,mods)
 		if action == GLFW_PRESS:
-			self.input['down'] = True
+			self.input['button'] = button
 			self.input['mouse'] = glfwGetCursorPos(window)
 		if action == GLFW_RELEASE:
-			self.input['down'] = False
+			self.input['button'] = None
 
 		# pos = normalize(pos,glfwGetWindowSize(window))
 		# pos = denormalize(pos,(frame.img.shape[1],frame.img.shape[0]) ) # Position in img pixels
@@ -418,11 +466,14 @@ class Visualizer():
 		hdpi_factor = float(glfwGetFramebufferSize(window)[0]/glfwGetWindowSize(window)[0])
 		x,y = x*hdpi_factor,y*hdpi_factor
 		# self.gui.update_mouse(x,y)
-		if self.input['down']:
+		if self.input['button']==GLFW_MOUSE_BUTTON_RIGHT:
 			old_x,old_y = self.input['mouse']
 			self.trackball.drag_to(x-old_x,y-old_y)
 			self.input['mouse'] = x,y
-
+		if self.input['button']==GLFW_MOUSE_BUTTON_LEFT:
+			old_x,old_y = self.input['mouse']
+			self.trackball.pan_to(x-old_x,y-old_y)
+			self.input['mouse'] = x,y
 	def on_scroll(self,window,x,y):
 		# self.gui.update_scroll(x,y)
 		self.trackball.zoom_to(y)
@@ -434,25 +485,26 @@ if __name__ == '__main__':
 	intrinsics = np.matrix('879.193 0 320; 0 879.193 240; 0 0 1')
 	huding = Visualizer("huding", run_independently = True, intrinsics = intrinsics)
 
-	# huding.ellipses.append(geometry.Ellipse((389.67633057,340.16584778), 44.97, 34, 2*scipy.pi/3))
+	huding.ellipses.append(geometry.Ellipse((389.67633057,340.16584778), 44.97, 24, 2*scipy.pi/3))
+	huding.ellipses.append(geometry.Ellipse((389.67633057,340.16584778), 44.97, 24, -2*scipy.pi/3))
 	# huding.ellipses.append(geometry.Ellipse((370.1632843,225.21165466), 42.16, 9.7, 1.7))
-	# # huding.ellipses.append(geometry.Ellipse((390.1632843,225.21165466), 42.16, 29.7, 3.7))
-	# # huding.ellipses.append(geometry.Ellipse([ 504.64957428 , 298.43984222],42.28, 14.13, 4.38*scipy.pi))
-	# # huding.ellipses.append(geometry.Ellipse((4.86,-48.18)   ))
+	# huding.ellipses.append(geometry.Ellipse((390.1632843,225.21165466), 42.16, 29.7, 3.7))
+	# huding.ellipses.append(geometry.Ellipse([ 504.64957428 , 298.43984222],42.28, 14.13, 4.38*scipy.pi))
+	# huding.ellipses.append(geometry.Ellipse((4.86,-48.18)   ))
 
-	# # huding.ellipses.append(geometry.Ellipse((232,58),45,26,4.62))
+	# huding.ellipses.append(geometry.Ellipse((232,58),45,26,4.62))
 
-	# huding.circles.append(geometry.Circle3D((1,1,2),(1,0,0),3)) #pointing in x dir
-	# huding.circles.append(geometry.Circle3D((0,0,0),(0,1,0),1)) #pointing in y dir
-	# huding.sphere.center = [11.63136843 , 16.53159359 , 40.12095085]
-	# # huding.sphere.center = [5,5,10]
-	# huding.sphere.radius = 5.
-	# huding.open_window()
-	# a = 0
-	# while huding.update_window():
-	# 	a += 1
-	# huding.close_window()
-	# print a
+	huding.circles.append(geometry.Circle3D((1,1,2),(1,0,0),3)) #pointing in x dir
+	huding.circles.append(geometry.Circle3D((0,0,0),(0,1,0),1)) #pointing in y dir
+	huding.sphere.center = [11.63136843 , 16.53159359 , 40.12095085]
+	# huding.sphere.center = [5,5,10]
+	huding.sphere.radius = 5.
+	huding.open_window()
+	a = 0
+	while huding.update_window():
+		a += 1
+	huding.close_window()
+	print a
 
 	# # print convert_fov(60,640)
 	b = np.array((1,1,1))

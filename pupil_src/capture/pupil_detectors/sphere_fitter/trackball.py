@@ -16,7 +16,7 @@ class Trackball(object):
     def __init__(self):
         super(Trackball, self).__init__()
 
-        self.distance = +40
+        self.distance = [0,0,-40]
         self.pitch = 0
         self.roll = 0
         self.aspect = 1.
@@ -27,11 +27,11 @@ class Trackball(object):
         glMatrixMode( GL_PROJECTION )
         glPushMatrix()
         glLoadIdentity( )
-        gluPerspective( 60.0, self.aspect, 0.1, 10000.0 )
+        gluPerspective( 30.0, self.aspect, 0.1, 10000.0 )
 
         # glPushMatrix()
         # glLoadIdentity( )
-        glTranslatef(0,0,self.distance)
+        glTranslatef(*self.distance)
         glRotatef(0,1,0,0)
         glRotatef(self.pitch,1,0,0)
         glRotatef(self.roll,0,1,0)
@@ -47,8 +47,12 @@ class Trackball(object):
         self.pitch += dy*(360./self.window[1])
         self.roll += dx*(360./self.window[0])
 
+    def pan_to(self,dx,dy):
+        self.distance[0] +=dx/10.
+        self.distance[1] -=dy/10.
+
     def zoom_to(self,dy):
-        self.distance += dy
+        self.distance[2] += dy
 
     def set_window_size(self,w,h):
         self.aspect = float(w)/h
